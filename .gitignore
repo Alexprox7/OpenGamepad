@@ -1,0 +1,20 @@
+# Local notes, not part of the project
+_private/
+
+# Companion build output
+pc-companion/bin/
+pc-companion/obj/
+pc-companion/publish/
+
+# IDEs and OS
+.vs/
+.vscode/
+.idea/
+*.user
+Thumbs.db
+.DS_Store
+
+# Signing keys
+*.jks
+*.keystore
+keystore.properties

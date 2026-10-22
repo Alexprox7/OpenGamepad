@@ -1,0 +1,42 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew
+      - run: ./gradlew testDebugUnitTest assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenGamepad-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+
+  companion:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: pc-companion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenGamepadCompanion
+          path: pc-companion/publish/OpenGamepadCompanion.exe

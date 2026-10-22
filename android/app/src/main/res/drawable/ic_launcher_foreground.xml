@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gamepad silhouette inside the 66dp adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#7C9CFF"
+        android:pathData="M41,36L67,36C73.5,36 78,39.5 79.3,45.5L84.6,67C86.4,74.6 79.2,80 73.4,75.3L65.6,68.5L42.4,68.5L34.6,75.3C28.8,80 21.6,74.6 23.4,67L28.7,45.5C30,39.5 34.5,36 41,36Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M37,46.5h3.5v-3.5h4v3.5h3.5v4h-3.5v3.5h-4v-3.5h-3.5z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M65.5,44.5a2.6,2.6 0,1 0,5.2 0a2.6,2.6 0,1 0,-5.2 0z M71.5,50.5a2.6,2.6 0,1 0,5.2 0a2.6,2.6 0,1 0,-5.2 0z M65.5,56.5a2.6,2.6 0,1 0,5.2 0a2.6,2.6 0,1 0,-5.2 0z M59.5,50.5a2.6,2.6 0,1 0,5.2 0a2.6,2.6 0,1 0,-5.2 0z" />
+</vector>
