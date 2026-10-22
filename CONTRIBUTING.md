@@ -41,10 +41,14 @@ A key can be generated with
 
 The release workflow reads the same values from the repository secrets `ANDROID_KEYSTORE_BASE64`
 (the `.jks` file encoded in base64), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
-`ANDROID_KEY_PASSWORD`. Without them the APK is signed with a throwaway debug key.
+`ANDROID_KEY_PASSWORD`, and refuses to run without them.
 
-Publishing a release: push a tag such as `v1.0.0`; GitHub Actions builds the APK and the companion
-and attaches them to a draft release.
+Every update must be signed with the same key as the previous releases, otherwise Android refuses
+to install it over the existing app: keep a backup of the keystore and its password.
+
+Publishing a release: *Actions → Release → Run workflow* with the new tag (e.g. `v1.1.0`); the
+workflow builds the APK and the companion and attaches them to a draft release. Releases can also
+be built locally (`./gradlew assembleRelease` with `keystore.properties`) and uploaded by hand.
 
 ## Guidelines
 
