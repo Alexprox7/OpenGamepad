@@ -43,6 +43,10 @@ class ScreenControlService : IScreenControl.Stub() {
         return panelOff
     }
 
+    override fun confirmPairing(address: String): Boolean = PrivilegedBluetooth.confirmPairing(address)
+
+    override fun setDeviceClass(deviceClass: Int): Int = PrivilegedBluetooth.setDeviceClass(deviceClass)
+
     /** Watches the raw input devices for the emergency key while the panel is off. */
     private fun startKeyWatcher() {
         if (keyWatcher != null) return

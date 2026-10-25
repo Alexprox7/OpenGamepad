@@ -2,9 +2,10 @@
 _private/
 
 # Companion build output
-pc-companion/bin/
-pc-companion/obj/
+pc-companion/**/bin/
+pc-companion/**/obj/
 pc-companion/publish/
+pc-companion/Linux/companion.log
 
 # IDEs and OS
 .vs/

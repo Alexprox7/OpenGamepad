@@ -5,7 +5,6 @@ import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothHidDevice
 import android.bluetooth.BluetoothHidDeviceAppQosSettings
-import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
@@ -16,8 +15,8 @@ import org.opengamepad.protocol.ControllerState
 import java.util.concurrent.Executors
 
 /**
- * Phone as a Bluetooth HID gamepad: no app needed on the host (PC, TV, phone).
- * The host sees a generic HID gamepad (DirectInput), not an Xbox controller.
+ * Phone as a Bluetooth HID device: no app needed on the host. What the host sees is
+ * decided by the [HidProfile] (generic gamepad + keyboard, or a Switch Pro Controller).
  * Callers must hold BLUETOOTH_CONNECT (Android 12+).
  */
 @SuppressLint("MissingPermission")
@@ -40,7 +39,17 @@ class BluetoothGamepad(private val context: Context) {
 
     private var hid: BluetoothHidDevice? = null
     private var host: BluetoothDevice? = null
-    private var lastReport: ByteArray? = null
+    private val prefs = context.getSharedPreferences("bluetooth", Context.MODE_PRIVATE)
+
+    /** Changing it while registered re-registers with the new profile. */
+    var profile: HidProfile = GenericGamepadProfile()
+        set(value) {
+            if (value.id == field.id) return
+            val wasOn = hid != null
+            if (wasOn) stop()
+            field = value
+            if (wasOn) start()
+        }
 
     private val _state = MutableStateFlow<State>(State.Off)
     val state: StateFlow<State> = _state
@@ -58,12 +67,13 @@ class BluetoothGamepad(private val context: Context) {
             return
         }
         if (hid != null) return
+        applyName()
         _state.value = State.Registering
         val ok = adapter.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                 val device = proxy as BluetoothHidDevice
                 hid = device
-                device.registerApp(SDP, null, QOS, executor, callback)
+                device.registerApp(this@BluetoothGamepad.profile.sdp, null, QOS, executor, callback)
             }
 
             override fun onServiceDisconnected(profile: Int) {
@@ -95,23 +105,53 @@ class BluetoothGamepad(private val context: Context) {
                 BluetoothProfile.STATE_CONNECTING -> _state.value = State.Connecting(name)
                 BluetoothProfile.STATE_CONNECTED -> {
                     host = device
-                    lastReport = null
+                    profile.attach { id, data -> hid?.sendReport(device, id, data) ?: false }
                     _state.value = State.Connected(name)
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> if (host == null || host == device) {
                     host = null
+                    profile.detach()
                     if (hid != null) _state.value = State.Ready
                 }
             }
         }
 
         override fun onGetReport(device: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
-            val report = when (id.toInt()) {
-                HidDescriptor.KEYBOARD_REPORT_ID -> HidDescriptor.keyboardReport(0, emptyList())
-                else -> lastReport ?: HidDescriptor.gamepadReport(ControllerState.NEUTRAL)
-            }
-            hid?.replyReport(device, type, id, report)
+            hid?.replyReport(device, type, id, profile.onGetReport(id.toInt() and 0xFF))
         }
+
+        override fun onSetReport(device: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
+            profile.onOutputReport(id.toInt() and 0xFF, data)
+            hid?.reportError(device, BluetoothHidDevice.ERROR_RSP_SUCCESS)
+        }
+
+        override fun onInterruptData(device: BluetoothDevice, reportId: Byte, data: ByteArray) {
+            profile.onOutputReport(reportId.toInt() and 0xFF, data)
+        }
+    }
+
+    /**
+     * Some hosts only accept specific names (the Switch wants "Pro Controller"). The
+     * phone's own name is saved first, so [restoreName] works even after a crash.
+     */
+    private fun applyName() {
+        val adapter = adapter ?: return
+        val wanted = profile.deviceName
+        if (wanted == null) {
+            restoreName()
+            return
+        }
+        if (!prefs.contains(KEY_ORIGINAL_NAME)) {
+            prefs.edit().putString(KEY_ORIGINAL_NAME, adapter.name).apply()
+        }
+        if (adapter.name != wanted) adapter.setName(wanted)
+    }
+
+    /** Puts back the phone's Bluetooth name if a profile changed it. */
+    fun restoreName() {
+        val original = prefs.getString(KEY_ORIGINAL_NAME, null) ?: return
+        adapter?.takeIf { it.name != original }?.setName(original)
+        prefs.edit().remove(KEY_ORIGINAL_NAME).apply()
     }
 
     /**
@@ -119,6 +159,7 @@ class BluetoothGamepad(private val context: Context) {
      * (earbuds, watches, speakers and other controllers are left out).
      */
     fun pairedHosts(): List<BluetoothDevice> = adapter?.bondedDevices.orEmpty().filter { device ->
+        if (device.name?.contains("Switch", ignoreCase = true) == true) return@filter true
         val btClass = device.bluetoothClass ?: return@filter true
         when (btClass.majorDeviceClass) {
             BluetoothClass.Device.Major.COMPUTER, BluetoothClass.Device.Major.PHONE -> true
@@ -138,17 +179,12 @@ class BluetoothGamepad(private val context: Context) {
     }
 
     fun send(state: ControllerState) {
-        val device = host ?: return
-        val report = HidDescriptor.gamepadReport(state)
-        if (report.contentEquals(lastReport)) return
-        lastReport = report
-        hid?.sendReport(device, HidDescriptor.GAMEPAD_REPORT_ID, report)
+        profile.onState(state)
     }
 
     /** Keyboard keys (HID usage codes) and modifier bits; send an empty list to release. */
     fun sendKeys(modifiers: Int, keys: List<Int>) {
-        val device = host ?: return
-        hid?.sendReport(device, HidDescriptor.KEYBOARD_REPORT_ID, HidDescriptor.keyboardReport(modifiers, keys))
+        if (host != null) profile.onKeys(modifiers, keys)
     }
 
     fun stop() {
@@ -158,10 +194,13 @@ class BluetoothGamepad(private val context: Context) {
         adapter?.closeProfileProxy(BluetoothProfile.HID_DEVICE, device)
         hid = null
         host = null
+        profile.detach()
+        restoreName()
         _state.value = State.Off
     }
 
     companion object {
+        private const val KEY_ORIGINAL_NAME = "original_name"
         private const val TAG = "BluetoothGamepad"
 
         private val TV_CLASSES = setOf(
@@ -172,13 +211,6 @@ class BluetoothGamepad(private val context: Context) {
             BluetoothClass.Device.AUDIO_VIDEO_VIDEO_GAMING_TOY,
         )
 
-        private val SDP = BluetoothHidDeviceAppSdpSettings(
-            "OpenGamepad",
-            "Gamepad Android",
-            "OpenGamepad",
-            (BluetoothHidDevice.SUBCLASS1_KEYBOARD.toInt() or BluetoothHidDevice.SUBCLASS2_GAMEPAD.toInt()).toByte(),
-            HidDescriptor.DESCRIPTOR,
-        )
 
         // Same values as Remote Gamepad: best effort, ~11 ms latency.
         private val QOS = BluetoothHidDeviceAppQosSettings(

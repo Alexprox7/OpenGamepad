@@ -5,7 +5,8 @@
 <h1 align="center">OpenGamepad</h1>
 
 <p align="center">
-  Turn your Android phone into a low-latency game controller for your PC.<br>
+  Turn your Android phone into a low-latency game controller for Windows, Linux, macOS,
+  Android phones, tablets and TVs, and Nintendo Switch.<br>
   Wi‑Fi · USB · Bluetooth · physical controller passthrough · macros and radial menus · OLED power saving
 </p>
 
@@ -22,12 +23,16 @@
 
 ## Features
 
-- **Three ways to connect**
-  | Mode | What the PC needs | What the PC sees |
+- **Works with many hosts**
+  | Host | Wi‑Fi / USB | Bluetooth (no software on the host) |
   |---|---|---|
-  | Wi‑Fi (QR code or `IP:port`) | OpenGamepad Companion | Xbox 360 controller (XInput) |
-  | USB cable | OpenGamepad Companion | Xbox 360 controller (XInput) |
-  | Bluetooth | **nothing** | Generic HID gamepad + keyboard |
+  | Windows 10/11 | Companion → Xbox 360 controller (XInput) | Generic gamepad + keyboard |
+  | Linux | Companion → Xbox 360 controller (uinput) | Generic gamepad + keyboard |
+  | macOS | – | Generic gamepad + keyboard (SDL/Steam games) |
+  | Android phone, tablet, Android TV, Google TV | – | Gamepad + keyboard, recognised natively |
+  | Nintendo Switch with Atmosphère (CFW) | Sysmodule → Pro Controller | – |
+- **Finds hosts by itself** – *Cerca* (search) lists companions and consoles on the local network;
+  QR code and `IP:port` still work.
 - **Physical controller passthrough** – plug a controller into the phone (e.g. GameSir G8 Galileo):
   its input is merged with the touch controls and sent to the PC.
 - **Rumble and player index** forwarded from the game to the phone.
@@ -58,10 +63,14 @@ Get the latest builds from the [Releases](../../releases) page:
 
 - `OpenGamepad-<version>.apk` – the Android app (Android 9 or later).
 - `OpenGamepadCompanion-<version>.exe` – the Windows companion (Windows 10/11).
+- `OpenGamepadCompanion-<version>-linux-x64.tar.gz` / `-linux-arm64.tar.gz` – the Linux companion.
+- `OpenGamepad-Switch-<version>.zip` – the sysmodule for a Switch running Atmosphère.
+- `OpenGamepad-<version>.ipa` – unsigned iOS/iPadOS app (16+) to sideload with SideStore or AltStore:
+  Wi‑Fi to companions and the Switch, touch controls and physical controllers ([ios/README.md](ios/README.md)).
 
 ## Getting started
 
-### PC (Wi‑Fi and USB)
+### Windows (Wi‑Fi and USB)
 
 1. Install the [ViGEmBus driver](https://github.com/nefarius/ViGEmBus/releases) and the
    [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
@@ -72,11 +81,43 @@ Get the latest builds from the [Releases](../../releases) page:
    The companion needs `adb` ([Android platform-tools](https://developer.android.com/tools/releases/platform-tools))
    in `PATH` or in `C:\platform-tools`.
 
-### Bluetooth (no PC software)
+### Linux (Wi‑Fi and USB)
+
+1. Extract the archive for your CPU and let your user create virtual devices (once):
+   ```sh
+   sudo modprobe uinput
+   sudo cp 70-opengamepad-uinput.rules /etc/udev/rules.d/
+   sudo udevadm control --reload && sudo udevadm trigger
+   sudo usermod -aG input $USER   # then log out and back in
+   ```
+2. Run `./opengamepad-companion`: it prints a QR code in the terminal. Connect as on Windows
+   (QR, *Cerca* or `IP:47800`; USB needs `adb` in `PATH`). Open TCP 47800 and UDP 47800–47801
+   if a firewall is active.
+
+Games see a wired Xbox 360 controller (same identity as the kernel `xpad` driver), with rumble.
+
+### Nintendo Switch (Atmosphère)
+
+1. Copy the `atmosphere` folder from `OpenGamepad-Switch-<version>.zip` to the root of the SD card
+   and restart the console.
+2. Connect the Switch to the same Wi‑Fi as the phone. In the app tap *Cerca* and pick
+   *Nintendo Switch* (or type `<Switch IP>:47800`; the IP is in *System Settings → Internet*).
+3. A black and blue Pro Controller appears; up to four phones can connect. The buttons follow the
+   Nintendo layout, by position (the bottom button is B).
+
+The sysmodule can be turned on and off from [ovl-sysmodules](https://github.com/WerWolv/ovl-sysmodules).
+It only runs on consoles with custom firmware: on a stock Switch use the Bluetooth route below,
+which needs a phone that can change its Bluetooth device class (most cannot without root).
+
+### Bluetooth (no software on the host)
 
 1. In the app tap *Attiva Bluetooth* (enable), then *Rendi visibile* (make visible).
-2. On the PC/TV add a Bluetooth device and pick the phone.
+2. On the PC, Mac, phone or TV add a Bluetooth device and pick the phone.
 3. Next time the phone reconnects by itself when the app starts.
+
+On Android and Google TV the gamepad and keyboard work out of the box. On macOS the gamepad is
+seen by SDL and Steam games; Apple's GameController framework (App Store games) only accepts
+Xbox, PlayStation and Switch controllers, and macOS has no virtual Xbox driver for a companion.
 
 While Bluetooth mode is on the app shows a "Gamepad Bluetooth attivo" notification: Android
 drops Bluetooth gamepads of apps that go to the background. If the phone was paired before with
@@ -114,7 +155,10 @@ an independent analysis of the network protocol, documented in [docs/PROTOCOL.md
 |---|---|---|
 | Android app | JDK 17+, Android SDK (platform 36) | `cd android && ./gradlew assembleRelease` |
 | Unit tests | same | `cd android && ./gradlew testDebugUnitTest` |
-| Windows companion | .NET 8 SDK | `cd pc-companion && dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish` |
+| Windows companion | .NET 8 SDK | `cd pc-companion/Windows && dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ../publish/win-x64` |
+| Linux companion | .NET 8 SDK | `cd pc-companion/Linux && dotnet publish -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -o ../publish/linux-x64` |
+| iOS app | macOS, Xcode 15+, XcodeGen | `cd ios && xcodegen generate` (see [ios/README.md](ios/README.md)) |
+| Switch sysmodule | [devkitPro](https://devkitpro.org/wiki/Getting_Started) `switch-dev` | `cd switch-sysmodule && make dist` |
 
 Release APKs are signed with the key described in `android/keystore.properties`
 (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`); without it the debug key is used.
@@ -123,10 +167,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 ## Project layout
 
 ```
-android/        Android app (Kotlin, Jetpack Compose)
-pc-companion/   Windows companion (C#, .NET 8, WinForms)
-docs/           Protocol specification and images
-tools/          Helper scripts
+android/          Android app (Kotlin, Jetpack Compose)
+pc-companion/     PC companion (C#, .NET 8)
+  Core/           shared protocol, sessions, discovery, ADB
+  Windows/        WinForms app, ViGEmBus pad, SendInput keyboard
+  Linux/          console app, uinput pad and keyboard
+switch-sysmodule/ Atmosphère sysmodule (C, libnx): virtual Pro Controller over Wi‑Fi
+ios/              iPhone/iPad app (SwiftUI), Wi‑Fi only
+docs/             Protocol specification and images
+tools/            Helper scripts
 ```
 
 ## Credits
@@ -137,6 +186,9 @@ tools/          Helper scripts
 - The panel-off technique follows [scrcpy](https://github.com/Genymobile/scrcpy) (Apache‑2.0).
 - [ZXing Android Embedded](https://github.com/journeyapps/zxing-android-embedded) (Apache‑2.0) – QR scanner.
 - [QRCoder](https://github.com/codebude/QRCoder) (MIT) – QR code in the companion.
+- [libnx](https://github.com/switchbrew/libnx) (ISC) – Switch sysmodule; the HDLS virtual controller
+  approach is the one used by [sys-botbase](https://github.com/olliz0r/sys-botbase) and
+  [MissionControl](https://github.com/ndeadly/MissionControl).
 
 ## License
 

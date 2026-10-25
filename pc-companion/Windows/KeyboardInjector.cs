@@ -7,7 +7,7 @@ namespace OpenGamepad.Companion;
 /// Uses scan codes, which games read reliably, and only sends the differences
 /// against the previous report.
 /// </summary>
-public sealed class KeyboardInjector
+public sealed class KeyboardInjector : IKeyboardOutput
 {
     private HashSet<ushort> _down = [];
 

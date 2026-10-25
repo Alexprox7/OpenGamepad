@@ -33,6 +33,7 @@ fun ControllerScreen(
     status: String,
     blackout: Boolean,
     radial: RadialView?,
+    nintendoLayout: Boolean = false,
     onScreenSaver: () -> Unit,
     onDisconnect: () -> Unit,
 ) {
@@ -48,13 +49,13 @@ fun ControllerScreen(
 
         // Shoulders and triggers
         Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PadButton("LT", { d -> input.touch { it.copy(leftTrigger = if (d) 255 else 0) } },
+            PadButton(if (nintendoLayout) "ZL" else "LT", { d -> input.touch { it.copy(leftTrigger = if (d) 255 else 0) } },
                 Modifier.width(96.dp).height(52.dp), TriggerShape)
-            PadButton("LB", button(Buttons.LEFT_SHOULDER), Modifier.width(96.dp).height(52.dp), PillShape)
+            PadButton(if (nintendoLayout) "L" else "LB", button(Buttons.LEFT_SHOULDER), Modifier.width(96.dp).height(52.dp), PillShape)
         }
         Row(Modifier.align(Alignment.TopEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PadButton("RB", button(Buttons.RIGHT_SHOULDER), Modifier.width(96.dp).height(52.dp), PillShape)
-            PadButton("RT", { d -> input.touch { it.copy(rightTrigger = if (d) 255 else 0) } },
+            PadButton(if (nintendoLayout) "R" else "RB", button(Buttons.RIGHT_SHOULDER), Modifier.width(96.dp).height(52.dp), PillShape)
+            PadButton(if (nintendoLayout) "ZR" else "RT", { d -> input.touch { it.copy(rightTrigger = if (d) 255 else 0) } },
                 Modifier.width(96.dp).height(52.dp), TriggerShape)
         }
 
@@ -70,9 +71,9 @@ fun ControllerScreen(
             }
             Text(status, color = Color(0xFF8A91A0), fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                PadButton("⧉", button(Buttons.BACK), Modifier.size(46.dp))
+                PadButton(if (nintendoLayout) "−" else "⧉", button(Buttons.BACK), Modifier.size(46.dp))
                 PadButton("⊙", button(Buttons.GUIDE), Modifier.size(56.dp), fontSize = 22)
-                PadButton("☰", button(Buttons.START), Modifier.size(46.dp))
+                PadButton(if (nintendoLayout) "+" else "☰", button(Buttons.START), Modifier.size(46.dp))
             }
         }
 
@@ -92,10 +93,10 @@ fun ControllerScreen(
 
         // Right side: ABXY + stick + R3
         Box(Modifier.align(Alignment.CenterEnd).offset(x = (-36).dp, y = (-20).dp).size(face * 3)) {
-            PadButton("Y", button(Buttons.Y), Modifier.align(Alignment.TopCenter).size(face), color = Color(0xFFF2C94C))
-            PadButton("X", button(Buttons.X), Modifier.align(Alignment.CenterStart).size(face), color = Color(0xFF56A8F5))
-            PadButton("B", button(Buttons.B), Modifier.align(Alignment.CenterEnd).size(face), color = Color(0xFFEB5757))
-            PadButton("A", button(Buttons.A), Modifier.align(Alignment.BottomCenter).size(face), color = Color(0xFF6FCF97))
+            PadButton(if (nintendoLayout) "X" else "Y", button(Buttons.Y), Modifier.align(Alignment.TopCenter).size(face), color = Color(0xFFF2C94C))
+            PadButton(if (nintendoLayout) "Y" else "X", button(Buttons.X), Modifier.align(Alignment.CenterStart).size(face), color = Color(0xFF56A8F5))
+            PadButton(if (nintendoLayout) "A" else "B", button(Buttons.B), Modifier.align(Alignment.CenterEnd).size(face), color = Color(0xFFEB5757))
+            PadButton(if (nintendoLayout) "B" else "A", button(Buttons.A), Modifier.align(Alignment.BottomCenter).size(face), color = Color(0xFF6FCF97))
         }
         Stick(
             onMove = { x, y -> input.touch { it.copy(rightX = ControllerState.axis(x), rightY = ControllerState.axis(y)) } },

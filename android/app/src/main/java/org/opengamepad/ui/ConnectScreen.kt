@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.opengamepad.bt.GenericGamepadProfile
+import org.opengamepad.bt.SwitchProProfile
 import org.opengamepad.screen.SaverMode
 import org.opengamepad.screen.ShizukuScreen
 
@@ -59,6 +61,10 @@ fun ConnectScreen(
     saverMode: SaverMode,
     shizuku: ShizukuScreen.Availability,
     onScan: () -> Unit,
+    found: List<org.opengamepad.net.FoundHost>,
+    searching: Boolean,
+    onSearch: () -> Unit,
+    onFound: (org.opengamepad.net.FoundHost) -> Unit,
     onUsb: () -> Unit,
     onConnect: (String) -> Unit,
     onTryLayout: () -> Unit,
@@ -92,8 +98,22 @@ fun ConnectScreen(
                 .height(IntrinsicSize.Max),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Card("📶", "Wi‑Fi", "Companion OpenGamepad o app PC originale · controller Xbox", Modifier.weight(1f)) {
-                Button(onClick = onScan, modifier = Modifier.fillMaxWidth()) { Text("Scansiona QR") }
+            Card("📶", "Wi‑Fi", "PC con companion OpenGamepad, Switch con sysmodule, o app PC originale", Modifier.weight(1f)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onScan, modifier = Modifier.weight(1f)) { Text("Scansiona QR") }
+                    OutlinedButton(onClick = onSearch, enabled = !searching, modifier = Modifier.weight(1f)) {
+                        Text(if (searching) "Cerco…" else "Cerca")
+                    }
+                }
+                if (found.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        found.forEach { host ->
+                            Button(onClick = { onFound(host) }) {
+                                Text((if (host.name.contains("Switch", true)) "🎮 " else "💻 ") + host.name)
+                            }
+                        }
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = target,
@@ -109,7 +129,19 @@ fun ConnectScreen(
                 Button(onClick = onUsb, modifier = Modifier.fillMaxWidth()) { Text("Connetti via USB") }
                 Text("Il companion prepara il collegamento da solo appena colleghi il cavo.", color = Faint, fontSize = 12.sp)
             }
-            Card("🎮", "Bluetooth", "Nessun programma sul PC · gamepad generico + tastiera", Modifier.weight(1f)) {
+            Card("🎮", "Bluetooth", "Nessun programma sul dispositivo: PC, Mac, Linux, Android, TV o Switch", Modifier.weight(1f)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = bluetooth.profileId == GenericGamepadProfile.ID,
+                        onClick = { bluetooth.onProfile(GenericGamepadProfile.ID) },
+                        label = { Text("PC · Android · TV") },
+                    )
+                    FilterChip(
+                        selected = bluetooth.profileId == SwitchProProfile.ID,
+                        onClick = { bluetooth.onProfile(SwitchProProfile.ID) },
+                        label = { Text("Nintendo Switch") },
+                    )
+                }
                 if (!bluetooth.active) {
                     Button(onClick = bluetooth.onStart, modifier = Modifier.fillMaxWidth()) { Text("Attiva Bluetooth") }
                 } else {
@@ -222,5 +254,7 @@ class BluetoothPanel(
     val onStart: () -> Unit,
     val onVisible: () -> Unit,
     val onDisable: () -> Unit,
+    val profileId: String,
+    val onProfile: (String) -> Unit,
     val onConnect: (String) -> Unit,
 )

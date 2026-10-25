@@ -80,6 +80,26 @@ class ShizukuScreen(private val context: Context) {
         }
     }
 
+    /** Confirms a pending pairing through the shell's BLUETOOTH_PRIVILEGED permission. */
+    suspend fun confirmPairing(address: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            bound()?.confirmPairing(address) ?: false
+        } catch (e: Exception) {
+            Log.e(TAG, "confirmPairing failed", e)
+            false
+        }
+    }
+
+    /** Sets the Bluetooth class of device; returns the previous one, or -1. */
+    suspend fun setDeviceClass(deviceClass: Int): Int = withContext(Dispatchers.IO) {
+        try {
+            bound()?.setDeviceClass(deviceClass) ?: -1
+        } catch (e: Exception) {
+            Log.e(TAG, "setDeviceClass failed", e)
+            -1
+        }
+    }
+
     /** False when the service has turned the panel back on by itself; null if unreachable. */
     fun heartbeat(): Boolean? = runCatching { service?.heartbeat() }.getOrNull()
 

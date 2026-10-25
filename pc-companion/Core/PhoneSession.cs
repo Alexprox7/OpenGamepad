@@ -1,26 +1,23 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
-using Nefarius.ViGEm.Client;
-using Nefarius.ViGEm.Client.Targets;
-using Nefarius.ViGEm.Client.Targets.Xbox360;
 
 namespace OpenGamepad.Companion;
 
 /// <summary>
 /// One connected phone: TCP control channel, optional UDP channel for states,
-/// and its own virtual Xbox 360 controller.
+/// and its own virtual controller from the platform backend.
 /// </summary>
 public sealed class PhoneSession : IDisposable
 {
     private readonly TcpClient _tcp;
     private readonly NetworkStream _stream;
-    private readonly ViGEmClient _vigem;
+    private readonly IPlatform _platform;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private UdpClient? _udp;
-    private IXbox360Controller? _pad;
-    private readonly KeyboardInjector _keyboard = new();
+    private IVirtualPad? _pad;
+    private readonly IKeyboardOutput _keyboard;
     private volatile bool _handshakeDone;
     private byte[]? _pendingFeedback;
 
@@ -34,12 +31,13 @@ public sealed class PhoneSession : IDisposable
     public event Action<PhoneSession>? Closed;
     public event Action<PhoneSession>? Changed;
 
-    public PhoneSession(TcpClient tcp, ViGEmClient vigem)
+    public PhoneSession(TcpClient tcp, IPlatform platform)
     {
         _tcp = tcp;
         _tcp.NoDelay = true;
         _stream = tcp.GetStream();
-        _vigem = vigem;
+        _platform = platform;
+        _keyboard = platform.CreateKeyboard();
         var remote = (IPEndPoint)tcp.Client.RemoteEndPoint!;
         // The listener is dual-stack: IPv4 peers show up as ::ffff:a.b.c.d.
         Remote = remote.Address.IsIPv4MappedToIPv6 ? new IPEndPoint(remote.Address.MapToIPv4(), remote.Port) : remote;
@@ -61,11 +59,8 @@ public sealed class PhoneSession : IDisposable
             DeviceId = BinaryPrimitives.ReadUInt64BigEndian(payload);
             IsOpenGamepad = payload.Length >= 11 && payload.AsSpan(8, 3).SequenceEqual(Protocol.ExtensionMagic);
 
-            _pad = _vigem.CreateXbox360Controller();
-            _pad.AutoSubmitReport = false;
-            _pad.FeedbackReceived += OnFeedback;
-            _pad.Connect();
-            try { PlayerIndex = _pad.UserIndex; } catch { /* not assigned yet */ }
+            _pad = _platform.CreatePad();
+            _pad.Feedback += OnFeedback;
 
             // UDP only makes sense over the network; over USB (adb reverse) everything uses TCP.
             ushort udpPort = 0;
@@ -77,8 +72,9 @@ public sealed class PhoneSession : IDisposable
             }
 
             var reply = new List<byte>();
-            reply.AddRange(BitConverter.GetBytes(udpPort)); // little-endian on Windows
-            reply.Add(Protocol.OsWindows);
+            reply.Add((byte)(udpPort & 0xFF));
+            reply.Add((byte)(udpPort >> 8));
+            reply.Add(_platform.OsCode);
             if (IsOpenGamepad)
             {
                 reply.AddRange(Protocol.ExtensionMagic);
@@ -86,7 +82,7 @@ public sealed class PhoneSession : IDisposable
             }
             await SendAsync(Protocol.Frame(Protocol.TypeHello, reply.ToArray()));
             _handshakeDone = true;
-            // ViGEm may report LED/rumble before the reply is out: deliver it now.
+            // The pad may report LED/rumble before the reply is out: deliver it now.
             if (Interlocked.Exchange(ref _pendingFeedback, null) is { } pending) await SendAsync(pending);
             Changed?.Invoke(this);
 
@@ -101,9 +97,9 @@ public sealed class PhoneSession : IDisposable
         {
             // connection closed
         }
-        catch (Exception e) when (e.GetType().Namespace?.StartsWith("Nefarius") == true)
+        catch (Exception e) when (e is not OutOfMemoryException)
         {
-            Log.Write($"ViGEm: {e.Message}");
+            Log.Write($"Controller virtuale: {e.Message}");
         }
         finally
         {
@@ -139,24 +135,15 @@ public sealed class PhoneSession : IDisposable
         if (message.Type != Protocol.TypeState || _pad is null) return;
         if (!ControllerState.TryDecode(message.Payload, out var s)) return;
         LastInput = DateTime.Now;
-        lock (_pad)
-        {
-            _pad.SetButtonsFull(s.Buttons);
-            _pad.SetAxisValue(Xbox360Axis.LeftThumbX, s.LeftX);
-            _pad.SetAxisValue(Xbox360Axis.LeftThumbY, s.LeftY);
-            _pad.SetAxisValue(Xbox360Axis.RightThumbX, s.RightX);
-            _pad.SetAxisValue(Xbox360Axis.RightThumbY, s.RightY);
-            _pad.SetSliderValue(Xbox360Slider.LeftTrigger, s.LeftTrigger);
-            _pad.SetSliderValue(Xbox360Slider.RightTrigger, s.RightTrigger);
-            _pad.SubmitReport();
-        }
+        lock (_pad) _pad.Update(s);
     }
 
-    private void OnFeedback(object? sender, Xbox360FeedbackReceivedEventArgs e)
+    private void OnFeedback(byte largeMotor, byte smallMotor, byte led)
     {
-        PlayerIndex = e.LedNumber;
+        // 0-3 are XInput slots; backends without player numbers (uinput) send 255.
+        if (led < 16) PlayerIndex = led;
         Changed?.Invoke(this);
-        var packet = Protocol.Frame(Protocol.TypeFeedback, [e.LargeMotor, e.SmallMotor, e.LedNumber]);
+        var packet = Protocol.Frame(Protocol.TypeFeedback, [largeMotor, smallMotor, led]);
         if (_handshakeDone) _ = SendAsync(packet);
         else _pendingFeedback = packet;
     }
@@ -199,7 +186,7 @@ public sealed class PhoneSession : IDisposable
         if (_cts.IsCancellationRequested) return;
         _cts.Cancel();
         _keyboard.ReleaseAll();
-        try { _pad?.Disconnect(); } catch { /* already gone */ }
+        try { _pad?.Dispose(); } catch { /* already gone */ }
         _udp?.Dispose();
         _tcp.Dispose();
     }

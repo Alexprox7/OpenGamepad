@@ -60,7 +60,7 @@ PC → phone reply:
 | Type | Field |
 |---|---|
 | u16 | UDP port for controller states (0 = send states over TCP) |
-| u8 | PC operating system: 1 Windows, 2 Linux, 3 macOS |
+| u8 | host: 1 Windows, 2 Linux, 3 macOS, 4 Nintendo Switch (OpenGamepad sysmodule) |
 | `"OGP"` + u8 | *optional*, present only when the phone sent the marker |
 
 The PC may send feedback messages before the reply; the phone skips them until it receives type 0.
@@ -100,7 +100,7 @@ PC → phone, over TCP:
 |---|---|
 | u8 | large motor 0–255 |
 | u8 | small motor 0–255 |
-| u8 | player LED index |
+| u8 | player LED index (0–3; 255 = the host has no player numbers, e.g. Linux) |
 
 ### 16 – Keyboard (OpenGamepad extension)
 
@@ -113,17 +113,41 @@ like a USB HID keyboard report:
 | u8 | count *n* (≤ 6) |
 | n × u8 | HID keyboard usages of the keys held down |
 
-The companion presses and releases keys with `SendInput` (scan codes) according to the difference with
-the previous report.
+The companion presses and releases keys according to the difference with the previous report
+(`SendInput` scan codes on Windows, a uinput keyboard on Linux). The Switch sysmodule ignores it.
+
+## LAN discovery
+
+The phone sends the ASCII datagram `OGP-DISCOVER` to UDP port **47801**, both to the subnet broadcast
+addresses and to every host of the local /22–/30 IPv4 subnets (many phones do not route broadcasts to
+Wi‑Fi). Companions and the Switch sysmodule answer to the sender:
+
+```
+OGP-HERE <tcp port> <name>
+```
+
+for example `OGP-HERE 47800 DESKTOP-1234` or `OGP-HERE 47800 Nintendo Switch`. At the same time the
+phone tries a bare TCP connection to port 47800 on every subnet host, for networks that drop UDP; hosts
+found only this way are listed by address. That probe sends no hello, so no controller is created.
+
+## Nintendo Switch sysmodule
+
+The sysmodule (`switch-sysmodule/`, program id `0100000000004750`) speaks the same protocol on TCP and
+UDP 47800 and answers with host code 4. Each phone that completes the hello gets a virtual Pro
+Controller (hiddbg HDLS); states are accepted over UDP only from the address of a greeted TCP client.
+Xbox buttons map by position (A → B, B → A, X → Y, Y → X, Guide → Home), triggers above 128 press
+ZL/ZR. A phone silent for 10 s is dropped.
 
 ## Bluetooth HID
 
 Without a companion the phone registers as a Bluetooth HID device (Android `BluetoothHidDevice`) with a
 composite descriptor:
 
-- **Report 1 – gamepad** (13 bytes): 16 buttons (A, B, X, Y, LB, RB, Back, Start, L3, R3, Guide), hat
-  switch (0 = up, clockwise, 8 = released) + 4 bits padding, X/Y/Z/Rz as signed 16‑bit (Y axes grow
-  downwards), Brake/Accelerator 0–255 as triggers.
+- **Report 1 – gamepad** (13 bytes): 16 buttons, hat switch (0 = up, clockwise, 8 = released) + 4 bits
+  padding, X/Y/Z/Rz as signed 16‑bit (Y axes grow downwards), Brake/Accelerator 0–255 as triggers.
+  Buttons use the slots Android and Linux expect from generic gamepads, so they map correctly without
+  a per-device layout: 1 A, 2 B, 4 X, 5 Y, 7 LB, 8 RB, 9 L2, 10 R2 (digital, trigger > 128),
+  11 Back, 12 Start, 13 Guide, 14 L3, 15 R3.
 - **Report 2 – keyboard** (8 bytes): modifiers, reserved byte, six key usages (0x00–0xE7).
 
 Hosts cache the descriptor at pairing time: after changing it the phone must be paired again.

@@ -15,8 +15,8 @@ android {
         applicationId = "org.opengamepad"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 6
+        versionName = "1.1.0"
     }
 
     // Release signing: keystore.properties (local, never committed) or environment variables (CI).
@@ -50,6 +50,11 @@ android {
         compose = true
         aidl = true
         buildConfig = true
+    }
+
+    testOptions {
+        // android.util.Log and friends return defaults in JVM unit tests
+        unitTests.isReturnDefaultValues = true
     }
 
     compileOptions {

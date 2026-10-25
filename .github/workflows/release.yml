@@ -47,26 +47,83 @@ jobs:
           name: apk
           path: android/OpenGamepad-*.apk
 
-  companion:
+  companion-windows:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: pc-companion
+        working-directory: pc-companion/Windows
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
-      - run: Copy-Item publish/OpenGamepadCompanion.exe "OpenGamepadCompanion-${{ inputs.tag }}.exe"
+      - run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ../publish/win-x64
+      - run: Copy-Item ../publish/win-x64/OpenGamepadCompanion.exe "../OpenGamepadCompanion-${{ inputs.tag }}.exe"
         shell: pwsh
       - uses: actions/upload-artifact@v4
         with:
-          name: companion
+          name: companion-windows
           path: pc-companion/OpenGamepadCompanion-*.exe
 
+  companion-linux:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pc-companion/Linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: |
+          for rid in linux-x64 linux-arm64; do
+            dotnet publish -c Release -r $rid --self-contained -p:PublishSingleFile=true -o ../publish/$rid
+            tar -czf "../OpenGamepadCompanion-${{ inputs.tag }}-$rid.tar.gz" -C ../publish/$rid opengamepad-companion 70-opengamepad-uinput.rules
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: companion-linux
+          path: pc-companion/OpenGamepadCompanion-*.tar.gz
+
+  switch-sysmodule:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+    defaults:
+      run:
+        working-directory: switch-sysmodule
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update && apt-get install -y zip
+      - run: make dist && cd dist && zip -r "../OpenGamepad-Switch-${{ inputs.tag }}.zip" atmosphere
+      - uses: actions/upload-artifact@v4
+        with:
+          name: switch-sysmodule
+          path: switch-sysmodule/OpenGamepad-Switch-*.zip
+
+  ios:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - run: >
+          xcodebuild -project OpenGamepad.xcodeproj -scheme OpenGamepad -configuration Release
+          -sdk iphoneos -derivedDataPath build
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/OpenGamepad.app Payload/
+          zip -qr "../OpenGamepad-${{ inputs.tag }}.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: OpenGamepad-*.ipa
+
   release:
-    needs: [android, companion]
+    needs: [android, companion-windows, companion-linux, switch-sysmodule, ios]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

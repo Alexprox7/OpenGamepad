@@ -1,0 +1,2 @@
+# Lets members of the "input" group create virtual controllers with OpenGamepad Companion.
+KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"

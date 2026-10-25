@@ -66,19 +66,29 @@ object HidDescriptor {
         0xC0,
     )
 
-    /** HID button order (1..16) for the Xbox-style buttons. */
-    private val BUTTON_ORDER = intArrayOf(
-        Buttons.A, Buttons.B, Buttons.X, Buttons.Y,
-        Buttons.LEFT_SHOULDER, Buttons.RIGHT_SHOULDER,
-        Buttons.BACK, Buttons.START,
-        Buttons.LEFT_THUMB, Buttons.RIGHT_THUMB,
-        Buttons.GUIDE,
+    /**
+     * HID button n becomes BTN_GAMEPAD + n-1 on Linux and Android (A, B, C, X, Y, Z, L1, R1,
+     * L2, R2, Select, Start, Mode, ThumbL, ThumbR), so buttons use those slots: phones,
+     * tablets, Android/Google TV and Linux see the right buttons. Windows numbers them
+     * 1, 2, 4, 5, 7… (the companion is the better choice there anyway).
+     */
+    private val BUTTON_SLOTS = mapOf(
+        Buttons.A to 0, Buttons.B to 1, Buttons.X to 3, Buttons.Y to 4,
+        Buttons.LEFT_SHOULDER to 6, Buttons.RIGHT_SHOULDER to 7,
+        Buttons.BACK to 10, Buttons.START to 11, Buttons.GUIDE to 12,
+        Buttons.LEFT_THUMB to 13, Buttons.RIGHT_THUMB to 14,
     )
+    private const val SLOT_L2 = 8
+    private const val SLOT_R2 = 9
+    private const val DIGITAL_TRIGGER_THRESHOLD = 128
 
     /** 13-byte gamepad report (without the report id, which sendReport adds). */
     fun gamepadReport(state: ControllerState): ByteArray {
         var hidButtons = 0
-        BUTTON_ORDER.forEachIndexed { i, mask -> if (state.isPressed(mask)) hidButtons = hidButtons or (1 shl i) }
+        for ((mask, slot) in BUTTON_SLOTS) if (state.isPressed(mask)) hidButtons = hidButtons or (1 shl slot)
+        // Some Android games read L2/R2 as buttons instead of the analog triggers.
+        if (state.leftTrigger > DIGITAL_TRIGGER_THRESHOLD) hidButtons = hidButtons or (1 shl SLOT_L2)
+        if (state.rightTrigger > DIGITAL_TRIGGER_THRESHOLD) hidButtons = hidButtons or (1 shl SLOT_R2)
         return ByteBuffer.allocate(13).order(ByteOrder.LITTLE_ENDIAN)
             .putShort(hidButtons.toShort())
             .put(hat(state).toByte())

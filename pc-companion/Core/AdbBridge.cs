@@ -90,21 +90,22 @@ public sealed class AdbBridge : IDisposable
 
     private static string? FindAdb()
     {
+        var exe = OperatingSystem.IsWindows() ? "adb.exe" : "adb";
         var candidates = new List<string>
         {
-            Path.Combine(AppContext.BaseDirectory, "adb", "adb.exe"),
-            Path.Combine(AppContext.BaseDirectory, "adb.exe"),
+            Path.Combine(AppContext.BaseDirectory, "adb", exe),
+            Path.Combine(AppContext.BaseDirectory, exe),
         };
         candidates.AddRange((Environment.GetEnvironmentVariable("PATH") ?? "")
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Select(dir => Path.Combine(dir.Trim(), "adb.exe")));
+            .Select(dir => Path.Combine(dir.Trim(), exe)));
         foreach (var sdk in new[] { "ANDROID_HOME", "ANDROID_SDK_ROOT" }.Select(Environment.GetEnvironmentVariable))
-            if (!string.IsNullOrEmpty(sdk)) candidates.Add(Path.Combine(sdk, "platform-tools", "adb.exe"));
+            if (!string.IsNullOrEmpty(sdk)) candidates.Add(Path.Combine(sdk, "platform-tools", exe));
         candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Android", "Sdk", "platform-tools", "adb.exe"));
+            "Android", "Sdk", "platform-tools", exe));
         candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "Android", "Sdk", "platform-tools", "adb.exe"));
-        candidates.Add(@"C:\platform-tools\adb.exe");
+            "Android", "Sdk", "platform-tools", exe));
+        if (OperatingSystem.IsWindows()) candidates.Add(@"C:\platform-tools\adb.exe");
         return candidates.FirstOrDefault(File.Exists);
     }
 

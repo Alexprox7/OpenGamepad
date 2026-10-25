@@ -234,6 +234,7 @@ class WifiConnection(private val deviceId: Long) {
         1 -> "Windows"
         2 -> "Linux"
         3 -> "Mac"
+        4 -> "Switch"
         else -> "sconosciuto ($code)"
     }
 

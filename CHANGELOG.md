@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.1.0 – unreleased
+
+### New hosts
+- **Linux companion**: virtual Xbox 360 controller (uinput, same identity as `xpad`) with rumble,
+  macro keyboard, QR code in the terminal, USB through `adb reverse`; x64 and arm64 builds.
+- **Nintendo Switch with Atmosphère**: sysmodule that turns each phone into a Pro Controller over Wi‑Fi
+  (up to four).
+- **Android phones, tablets, Android TV and Google TV** over Bluetooth: buttons now use the
+  generic-gamepad slots Android expects, so A/B/X/Y and shoulders map correctly.
+- macOS over Bluetooth is documented (SDL/Steam games).
+- **iPhone and iPad** (iOS 16+): new SwiftUI app, unsigned IPA for SideStore/AltStore. Wi‑Fi to
+  companions and the Switch, LAN search, QR through the Camera app, physical controllers, haptics.
+
+### Android app
+- *Cerca* (search) finds companions and Switch consoles on the local network.
+- Nintendo button labels when connected to a Switch.
+- Experimental Bluetooth Pro Controller profile for stock Switch consoles, with automatic pairing
+  confirmation through Shizuku. It needs a phone that can change its Bluetooth device class; Android 16
+  removed that API, so on most phones the Switch drops the connection.
+
+### Companion
+- Code split into a shared core and per-OS backends (`pc-companion/Core`, `Windows`, `Linux`).
+- Answers LAN discovery on UDP 47801.
+
 ## 1.0.0 – 2026-10-23
 
 First public release.

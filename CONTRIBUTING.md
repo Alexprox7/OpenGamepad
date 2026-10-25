@@ -20,10 +20,17 @@ adb shell am start -n org.opengamepad/.MainActivity --es macrosFile /data/local/
 
 `adb shell input gamepad keyevent KEYCODE_BUTTON_A` simulates a physical controller.
 
-### Windows companion (`pc-companion/`)
+### Companion (`pc-companion/`)
 
-- .NET 8 SDK, ViGEmBus driver installed.
-- `dotnet build` / `dotnet run`.
+- .NET 8 SDK. Shared code lives in `Core/`; each OS has its own project that compiles `Core/` in.
+- Windows: ViGEmBus driver installed, `cd Windows && dotnet run`.
+- Linux: `cd Linux && dotnet run` with access to `/dev/uinput`; `python3 smoke_test.py` checks it.
+
+### Switch sysmodule (`switch-sysmodule/`)
+
+- devkitPro `switch-dev`, `make dist` from a path without spaces.
+- Test on a console with Atmosphère; logs are not written, so check with the app (*Cerca* and the
+  controller list in *Controllers → Change grip/order*).
 
 ## Release signing
 

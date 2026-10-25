@@ -34,7 +34,19 @@ class Prefs(context: Context) {
         get() = prefs.getBoolean(KEY_BLUETOOTH, false)
         set(value) = prefs.edit().putBoolean(KEY_BLUETOOTH, value).apply()
 
+    /** Bluetooth profile id: GenericGamepadProfile.ID or SwitchProProfile.ID. */
+    var bluetoothProfile: String
+        get() = prefs.getString(KEY_BLUETOOTH_PROFILE, null) ?: org.opengamepad.bt.GenericGamepadProfile.ID
+        set(value) = prefs.edit().putString(KEY_BLUETOOTH_PROFILE, value).apply()
+
+    /** Class of device the phone had before Switch mode changed it, or -1. */
+    var originalDeviceClass: Int
+        get() = prefs.getInt(KEY_ORIGINAL_CLASS, -1)
+        set(value) = prefs.edit().putInt(KEY_ORIGINAL_CLASS, value).apply()
+
     private companion object {
+        const val KEY_ORIGINAL_CLASS = "original_device_class"
+        const val KEY_BLUETOOTH_PROFILE = "bluetooth_profile"
         const val KEY_BLUETOOTH = "bluetooth_enabled"
         const val KEY_MACROS = "macros_v2"
         const val KEY_DEVICE_ID = "device_id"

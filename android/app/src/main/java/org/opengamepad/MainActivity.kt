@@ -2,6 +2,12 @@ package org.opengamepad
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -31,6 +37,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.opengamepad.bt.BluetoothGamepad
 import org.opengamepad.bt.BluetoothKeepAliveService
+import org.opengamepad.bt.GenericGamepadProfile
+import org.opengamepad.bt.SwitchProProfile
 import org.opengamepad.input.GamepadInput
 import org.opengamepad.macro.MacroConfig
 import org.opengamepad.macro.MacroEngine
@@ -67,10 +75,15 @@ class MainActivity : ComponentActivity() {
     private var showPad by mutableStateOf(false)
     private var showMacros by mutableStateOf(false)
     private var showJson by mutableStateOf(false)
+    private var foundHosts by mutableStateOf(emptyList<org.opengamepad.net.FoundHost>())
+    private var searching by mutableStateOf(false)
     private var macroConfig by mutableStateOf(MacroConfig.EMPTY)
     private var saverMode by mutableStateOf(org.opengamepad.screen.SaverMode.BLACK)
     private var shizukuState by mutableStateOf(ShizukuScreen.Availability.NOT_RUNNING)
     private var playerLed by mutableStateOf(0)
+    private var switchPlayer by mutableStateOf(0)
+    private var bluetoothProfileId by mutableStateOf(GenericGamepadProfile.ID)
+    private var switchJobs: List<Job> = emptyList()
 
     private val scanner = registerForActivityResult(ScanContract()) { result ->
         result.contents?.let(::connectTo)
@@ -83,6 +96,52 @@ class MainActivity : ComponentActivity() {
             else toast("Senza il permesso Bluetooth la modalità senza companion non è disponibile")
         }
 
+    /**
+     * Switch pairing: the console gives up if the "just works" request is not confirmed
+     * within a few seconds, so in Switch mode it is confirmed at once through Shizuku.
+     */
+    private val pairingReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (bluetoothProfileId != SwitchProProfile.ID) return
+            val device = IntentCompat.getParcelableExtra(intent, BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                ?: return
+            val bondState = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1)
+            val starting = intent.action == BluetoothDevice.ACTION_PAIRING_REQUEST || bondState == BluetoothDevice.BOND_BONDING
+            val name = runCatching { device.name }.getOrNull().orEmpty()
+            if (!(name.contains("Switch", true) || name.contains("Nintendo", true))) return
+            if (bondState == BluetoothDevice.BOND_BONDED) {
+                // A real controller opens the HID channels itself right after pairing;
+                // the console closes the link if nothing arrives.
+                android.util.Log.i("MainActivity", "paired with ${device.address}, connecting HID")
+                bluetooth.connect(device)
+                return
+            }
+            if (!starting) return
+            if (shizukuState != ShizukuScreen.Availability.READY) {
+                toast("Conferma subito \"Accoppia\": con Shizuku attivo lo farebbe l'app da sola")
+                return
+            }
+            lifecycleScope.launch {
+                // The request may not be ready yet when bonding starts: retry briefly.
+                repeat(10) {
+                    if (shizuku.confirmPairing(device.address)) {
+                        // Android announces BOND_BONDED seconds later, after its own service
+                        // discovery; the console drops the link long before. Open the HID
+                        // channels right away, as a real controller would.
+                        repeat(5) { attempt ->
+                            delay(if (attempt == 0) 60L else 250L)
+                            if (bluetooth.state.value is BluetoothGamepad.State.Connected) return@launch
+                            android.util.Log.i("MainActivity", "confirmed ${device.address}, connecting HID (#$attempt)")
+                            bluetooth.connect(device)
+                        }
+                        return@launch
+                    }
+                    delay(150)
+                }
+            }
+        }
+    }
+
     private val discoverable =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 
@@ -94,6 +153,7 @@ class MainActivity : ComponentActivity() {
         saver = ScreenSaver(this, lifecycleScope, shizuku, ::toast)
         saverMode = prefs.saverMode
         bluetooth = (application as OpenGamepadApp).bluetooth
+        useBluetoothProfile(prefs.bluetoothProfile)
         macros = MacroEngine(lifecycleScope)
         applyMacros(
             runCatching { MacroConfig.parse(prefs.macroJson) }.getOrElse {
@@ -137,6 +197,15 @@ class MainActivity : ComponentActivity() {
             }
         }
         watchWakeCombo()
+        ContextCompat.registerReceiver(
+            this,
+            pairingReceiver,
+            IntentFilter().apply {
+                addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
+                addAction(BluetoothDevice.ACTION_PAIRING_REQUEST)
+            },
+            ContextCompat.RECEIVER_EXPORTED,
+        )
         if (prefs.bluetoothEnabled && hasBluetoothPermission()) enableBluetooth()
         if (BuildConfig.DEBUG) applyTestExtras()
 
@@ -164,8 +233,13 @@ class MainActivity : ComponentActivity() {
             val status by connection.status.collectAsState()
             val saverState by saver.state.collectAsState()
             val btState by bluetooth.state.collectAsState()
-            val statusText = (btState as? BluetoothGamepad.State.Connected)
-                ?.let { "Bluetooth: ${it.name}" } ?: describe(status)
+            val statusText = (btState as? BluetoothGamepad.State.Connected)?.let {
+                if (bluetoothProfileId == SwitchProProfile.ID) {
+                    "Switch: ${it.name}" + if (switchPlayer > 0) " · giocatore $switchPlayer" else ""
+                } else {
+                    "Bluetooth: ${it.name}"
+                }
+            } ?: describe(status)
             val radial by macros.radial.collectAsState()
             if (showMacros && showJson) {
                 MacroEditorScreen(
@@ -194,6 +268,9 @@ class MainActivity : ComponentActivity() {
                     status = statusText,
                     blackout = saverState != SaverState.OFF,
                     radial = radial,
+                    nintendoLayout = (bluetoothProfileId == SwitchProProfile.ID &&
+                        btState is BluetoothGamepad.State.Connected) ||
+                        (status as? ConnectionStatus.Connected)?.pcOs?.startsWith("Switch") == true,
                     onScreenSaver = { saver.enter(saverMode) },
                     onDisconnect = {
                         saver.exit()
@@ -216,6 +293,13 @@ class MainActivity : ComponentActivity() {
                     saverMode = saverMode,
                     shizuku = shizukuState,
                     onScan = ::scan,
+                    found = foundHosts,
+                    searching = searching,
+                    onSearch = ::searchLan,
+                    onFound = { host ->
+                        prefs.lastTarget = "${host.host}:${host.port}"
+                        connection.connect(host.target())
+                    },
                     onUsb = { connection.connect(ConnectTarget.usb()) },
                     onConnect = ::connectTo,
                     onTryLayout = { showPad = true },
@@ -244,6 +328,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        unregisterReceiver(pairingReceiver)
         connection.release()
         // With Bluetooth mode on, the registration stays alive in the foreground service.
         if (!prefs.bluetoothEnabled) bluetooth.stop()
@@ -303,8 +388,12 @@ class MainActivity : ComponentActivity() {
             BluetoothGamepad.State.Off -> ""
             BluetoothGamepad.State.Unsupported -> "Non supportato su questo telefono"
             BluetoothGamepad.State.Registering -> "Attivazione…"
-            BluetoothGamepad.State.Ready ->
-                "Pronto: abbina \"OpenGamepad\" dal PC/TV, oppure tocca un dispositivo già abbinato"
+            BluetoothGamepad.State.Ready -> if (bluetoothProfileId == SwitchProProfile.ID) {
+                "Sulla Switch apri Controller → Cambia impugnatura/ordine, poi tocca Rendi visibile: " +
+                    "il telefono appare come \"Pro Controller\""
+            } else {
+                "Pronto: abbina il telefono dal PC/TV, oppure tocca un dispositivo già abbinato"
+            }
             is BluetoothGamepad.State.Connecting -> "Connessione a ${state.name}…"
             is BluetoothGamepad.State.Connected -> "Connesso a ${state.name}"
             is BluetoothGamepad.State.Failed -> "Errore: ${state.reason}"
@@ -326,6 +415,11 @@ class MainActivity : ComponentActivity() {
                 )
             },
             onDisable = ::disableBluetooth,
+            profileId = bluetoothProfileId,
+            onProfile = { id ->
+                prefs.bluetoothProfile = id
+                useBluetoothProfile(id)
+            },
             onConnect = { address ->
                 bluetooth.pairedHosts().firstOrNull { it.address == address }?.let(bluetooth::connect)
             },
@@ -345,6 +439,65 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Selects what the phone emulates over Bluetooth. The Switch profile also forwards
+     * rumble to the phone's vibrator and shows the player number.
+     */
+    private fun useBluetoothProfile(id: String) {
+        switchJobs.forEach { it.cancel() }
+        switchJobs = emptyList()
+        switchPlayer = 0
+        bluetoothProfileId = id
+        if (id != SwitchProProfile.ID) {
+            bluetooth.profile = GenericGamepadProfile()
+            restoreDeviceClass()
+            return
+        }
+        applyGamepadDeviceClass()
+        val current = bluetooth.profile as? SwitchProProfile ?: SwitchProProfile(switchAddress())
+        bluetooth.profile = current
+        switchJobs = listOf(
+            lifecycleScope.launch { current.player.collect { switchPlayer = it } },
+            lifecycleScope.launch {
+                current.rumble.collect { on -> onFeedback(Feedback(if (on) 160 else 0, 0, 0)) }
+            },
+        )
+    }
+
+    /**
+     * The Switch drops anything that is not a gamepad right after pairing: in Switch mode
+     * the phone advertises class 0x002508 through Shizuku, and gets its own back afterwards.
+     */
+    private fun applyGamepadDeviceClass() {
+        if (shizuku.availability() != ShizukuScreen.Availability.READY) {
+            toast("Per la Switch serve Shizuku attivo: senza, la console rifiuta il telefono")
+            return
+        }
+        lifecycleScope.launch {
+            val previous = shizuku.setDeviceClass(GAMEPAD_DEVICE_CLASS)
+            if (previous >= 0 && previous != GAMEPAD_DEVICE_CLASS && prefs.originalDeviceClass < 0) {
+                prefs.originalDeviceClass = previous
+            }
+        }
+    }
+
+    private fun restoreDeviceClass() {
+        val original = prefs.originalDeviceClass
+        if (original < 0 || shizuku.availability() != ShizukuScreen.Availability.READY) return
+        lifecycleScope.launch {
+            if (shizuku.setDeviceClass(original) >= 0) prefs.originalDeviceClass = -1
+        }
+    }
+
+    /** Stable controller address for the Switch: Nintendo prefix + bytes of the device id. */
+    private fun switchAddress(): ByteArray {
+        val id = prefs.deviceId
+        return byteArrayOf(
+            0x98.toByte(), 0xB6.toByte(), 0xE9.toByte(),
+            (id shr 16).toByte(), (id shr 8).toByte(), id.toByte(),
+        )
+    }
+
     private fun enableBluetooth() {
         prefs.bluetoothEnabled = true
         BluetoothKeepAliveService.start(this)
@@ -352,9 +505,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun disableBluetooth() {
+        restoreDeviceClass()
         prefs.bluetoothEnabled = false
         bluetooth.stop()
         BluetoothKeepAliveService.stop(this)
+    }
+
+    /** Looks for OpenGamepad companions and Switch sysmodules on the local network. */
+    private fun searchLan() {
+        searching = true
+        lifecycleScope.launch {
+            foundHosts = runCatching { org.opengamepad.net.Discovery.search() }
+                .onFailure { android.util.Log.e("Discovery", "search failed", it) }
+                .getOrDefault(emptyList())
+            searching = false
+            if (foundHosts.isEmpty()) toast("Nessun dispositivo OpenGamepad trovato sulla rete")
+        }
     }
 
     private fun scan() {
@@ -379,7 +545,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onFeedback(feedback: Feedback) {
-        playerLed = feedback.ledNumber
+        // 255 = the host has no player numbers (Linux companion).
+        if (feedback.ledNumber < 16) playerLed = feedback.ledNumber
         val strength = maxOf(feedback.largeMotor, feedback.smallMotor)
         val vibrator = vibrator() ?: return
         if (strength == 0) {
@@ -436,5 +603,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val RUMBLE_MAX_MS = 10_000L
+        private const val GAMEPAD_DEVICE_CLASS = 0x002508 // peripheral, gamepad
     }
 }

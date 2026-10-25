@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using Nefarius.ViGEm.Client;
 
 namespace OpenGamepad.Companion;
 
@@ -11,7 +10,7 @@ public sealed class CompanionServer : IDisposable
 {
     public const int PreferredPort = 47800;
 
-    private readonly ViGEmClient _vigem;
+    private readonly IPlatform _platform;
     private readonly TcpListener _listener;
     private readonly ConcurrentDictionary<PhoneSession, byte> _sessions = new();
     private readonly CancellationTokenSource _cts = new();
@@ -20,12 +19,45 @@ public sealed class CompanionServer : IDisposable
     public event Action? SessionsChanged;
     public IReadOnlyCollection<PhoneSession> Sessions => _sessions.Keys.ToList();
 
-    public CompanionServer(ViGEmClient vigem)
+    public CompanionServer(IPlatform platform)
     {
-        _vigem = vigem;
+        _platform = platform;
         _listener = Bind(PreferredPort) ?? Bind(0)!;
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
         _ = AcceptLoopAsync();
+        _ = DiscoveryLoopAsync();
+    }
+
+    public const int DiscoveryPort = 47801;
+
+    /** Answers "OGP-DISCOVER" broadcasts from the app with "OGP-HERE <port> <name>". */
+    private async Task DiscoveryLoopAsync()
+    {
+        UdpClient udp;
+        try
+        {
+            udp = new UdpClient(new IPEndPoint(IPAddress.Any, DiscoveryPort));
+        }
+        catch (SocketException e)
+        {
+            Log.Write($"Ricerca LAN non disponibile: {e.Message}");
+            return;
+        }
+        using (udp)
+        {
+            var answer = System.Text.Encoding.ASCII.GetBytes($"OGP-HERE {Port} {Environment.MachineName}");
+            while (!_cts.IsCancellationRequested)
+            {
+                try
+                {
+                    var request = await udp.ReceiveAsync(_cts.Token);
+                    if (System.Text.Encoding.ASCII.GetString(request.Buffer).StartsWith("OGP-DISCOVER"))
+                        await udp.SendAsync(answer, request.RemoteEndPoint, _cts.Token);
+                }
+                catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException) { return; }
+                catch (SocketException) { }
+            }
+        }
     }
 
     private static TcpListener? Bind(int port)
@@ -51,7 +83,7 @@ public sealed class CompanionServer : IDisposable
             try { client = await _listener.AcceptTcpClientAsync(_cts.Token); }
             catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException or SocketException) { return; }
 
-            var session = new PhoneSession(client, _vigem);
+            var session = new PhoneSession(client, _platform);
             _sessions[session] = 0;
             session.Changed += _ => SessionsChanged?.Invoke();
             session.Closed += s =>

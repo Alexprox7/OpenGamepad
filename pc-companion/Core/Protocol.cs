@@ -22,6 +22,8 @@ public static class Protocol
     public const byte TypeKeyboard = 16;
 
     public const byte OsWindows = 1;
+    public const byte OsLinux = 2;
+    public const byte OsMac = 3;
 
     /// <summary>Extension block appended to hello and reply when both sides are OpenGamepad.</summary>
     public static readonly byte[] ExtensionMagic = "OGP"u8.ToArray();
