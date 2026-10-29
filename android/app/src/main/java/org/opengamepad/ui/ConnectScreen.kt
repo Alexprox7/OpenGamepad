@@ -45,8 +45,8 @@ import org.opengamepad.screen.ShizukuScreen
 
 val Accent = Color(0xFF7C9CFF)
 private val CardBorder = Color(0xFF262A31)
-private val Muted = Color(0xFF8A91A0)
-private val Faint = Color(0xFF5F6673)
+internal val Muted = Color(0xFF8A91A0)
+internal val Faint = Color(0xFF5F6673)
 private val Ok = Color(0xFF4ADE80)
 private val Error = Color(0xFFF87171)
 
@@ -72,6 +72,7 @@ fun ConnectScreen(
     onSaverMode: (SaverMode) -> Unit,
     onShizukuPermission: () -> Unit,
     bluetooth: BluetoothPanel,
+    motion: (@Composable () -> Unit)? = null,
 ) {
     var target by remember { mutableStateOf(initialTarget) }
     Column(
@@ -188,12 +189,14 @@ fun ConnectScreen(
                 fontSize = 12.sp,
             )
         }
+
+        motion?.invoke()
     }
 }
 
 /** Outline-only card: no fill, so the screen stays black on OLED panels. */
 @Composable
-private fun Card(
+internal fun Card(
     icon: String,
     title: String,
     subtitle: String,

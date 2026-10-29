@@ -23,6 +23,9 @@ interface HidProfile {
     fun onState(state: ControllerState)
     fun onKeys(modifiers: Int, keys: List<Int>) {}
 
+    /** Latest motion sample for profiles with an IMU; null when gyro passthrough stops. */
+    fun onMotion(sample: org.opengamepad.motion.MotionSample?) {}
+
     /** Answer to a GET_REPORT on the control channel. */
     fun onGetReport(reportId: Int): ByteArray
 

@@ -116,6 +116,28 @@ like a USB HID keyboard report:
 The companion presses and releases keys according to the difference with the previous report
 (`SendInput` scan codes on Windows, a uinput keyboard on Linux). The Switch sysmodule ignores it.
 
+### 17 – Motion (OpenGamepad extension)
+
+Phone → host over **UDP**, only to hosts that answered the hello with the `"OGP"` marker and only while
+"Giroscopio reale" is on in the app, at up to ~100 Hz (one packet per gyroscope sample, at least 9 ms
+apart). Not sent over USB. 16‑byte payload:
+
+| Type | Field |
+|---|---|
+| u32 | sensor timestamp in µs (phone clock, wraps) |
+| i16 ×3 | acceleration x, y, z in mg (1/1000 g) |
+| i16 ×3 | angular velocity x, y, z in 0.1 °/s |
+
+Axes are the **controller frame**: the phone held in landscape like a gamepad, x towards the right edge,
+y towards the top edge (shoulder buttons), z out of the screen towards the player — Android's sensor axes
+rotated to the current screen orientation. Acceleration is proper acceleration as Android reports it
+(lying flat face up: z = +1000). Rotations are counter‑clockwise positive around each axis (right‑hand
+rule): +x tilts the top edge towards the player, +y moves the right edge away, +z turns the phone like a
+steering wheel to the left.
+
+The Windows and Linux companions ignore it (Xbox 360 and uinput pads have no gyro). Types 18–23 are
+reserved.
+
 ## LAN discovery
 
 The phone sends the ASCII datagram `OGP-DISCOVER` to UDP port **47801**, both to the subnet broadcast
@@ -138,6 +160,44 @@ Controller (hiddbg HDLS); states are accepted over UDP only from the address of 
 Xbox buttons map by position (A → B, B → A, X → Y, Y → X, Guide → Home), triggers above 128 press
 ZL/ZR. A phone silent for 10 s is dropped.
 
+### Motion on the Switch
+
+On HOS 12.0.0+ (where `HiddbgHdlsState` has the fields; the console checks with `hosversionAtLeast`) the
+virtual Pro Controller is attached with `HasVirtualSixAxisSensorAcceleration | HasVirtualSixAxisSensorAngle`
+and type‑17 samples drive it:
+
+| HDLS field | From the type‑17 sample |
+|---|---|
+| `six_axis_sensor_acceleration` (g) | (x, y, −z) / 1000 |
+| `six_axis_sensor_angle` (revolutions, 1.0 = 360°) | integral of (x, y, −z) × 0.1 °/s ÷ 360 over the sample timestamps |
+
+The Switch frame is x right, y towards the top edge, z into the controller (a Pro Controller lying flat
+face up reads z = −1 g), so z flips sign. The angle follows `HidSixAxisSensorState.angle`: rotation
+integrated per axis. With no sample for 0.5 s the acceleration returns to the resting (0, 0, −1) and the
+angle stays where it is. Late UDP packets (older timestamp) are dropped; gaps are not extrapolated beyond
+0.1 s.
+
+## DSU server (emulators)
+
+With "Server DSU per emulatori" on, the app listens on UDP **26760** and speaks the cemuhook DSU
+protocol, version 1001, as one controller in slot 0 (model "full gyro", Bluetooth, battery full). In the
+emulator set the DSU/cemuhook server to the phone's address and port 26760. Clients must repeat their
+pad‑data request: after 5 s without one they stop receiving. The server runs only while the option is on
+and the app is in the foreground.
+
+Every packet: `"DSUS"`, u16 version 1001, u16 length after the 16‑byte header, u32 CRC32 (zlib) of the
+whole packet with this field zeroed, u32 server id, u32 message type, data. Requests (`"DSUC"`) are
+checked the same way. Supported: 0x100000 version, 0x100001 port info, 0x100002 pad data (100 bytes).
+
+Pad data carries buttons (by position, as on the Switch: Xbox A → B, B → A, X → Y, Y → X), sticks
+(0–255, up positive), triggers, and motion converted from the controller frame:
+
+| DSU field | Value |
+|---|---|
+| accel X, Y, Z (g) | x, −z, −y (lying flat face up: Y = −1) |
+| gyro pitch, yaw, roll (°/s) | x, z, y |
+| timestamp | sensor time in µs |
+
 ## Bluetooth HID
 
 Without a companion the phone registers as a Bluetooth HID device (Android `BluetoothHidDevice`) with a
@@ -151,3 +211,9 @@ composite descriptor:
 - **Report 2 – keyboard** (8 bytes): modifiers, reserved byte, six key usages (0x00–0xE7).
 
 Hosts cache the descriptor at pairing time: after changing it the phone must be paired again.
+
+The Switch Pro Controller profile fills the three IMU samples of report 0x30 (bytes 13–48 after the
+report id) with the latest motion sample while gyro passthrough is on, otherwise they stay at zero. Pro
+Controller sensor axes: x towards the top edge, y towards the left, z out of the face; raw values invert
+the factory calibration the profile serves from SPI 0x6020 (accel ±4 g span over sensitivity − origin,
+gyro 936 °/s over sensitivity − origin).

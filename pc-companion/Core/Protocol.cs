@@ -20,6 +20,8 @@ public static class Protocol
     public const byte TypeFeedback = 2;
     /// <summary>OpenGamepad extension: u8 HID modifiers, u8 count, count × u8 HID key usages.</summary>
     public const byte TypeKeyboard = 16;
+    /// <summary>OpenGamepad extension: phone motion sample. Xbox 360 has no gyro, so the companion ignores it.</summary>
+    public const byte TypeMotion = 17;
 
     public const byte OsWindows = 1;
     public const byte OsLinux = 2;

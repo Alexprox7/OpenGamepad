@@ -182,6 +182,10 @@ class BluetoothGamepad(private val context: Context) {
         profile.onState(state)
     }
 
+    fun sendMotion(sample: org.opengamepad.motion.MotionSample?) {
+        profile.onMotion(sample)
+    }
+
     /** Keyboard keys (HID usage codes) and modifier bits; send an empty list to release. */
     fun sendKeys(modifiers: Int, keys: List<Int>) {
         if (host != null) profile.onKeys(modifiers, keys)

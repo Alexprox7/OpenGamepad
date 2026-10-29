@@ -19,6 +19,11 @@
 - Experimental Bluetooth Pro Controller profile for stock Switch consoles, with automatic pairing
   confirmation through Shizuku. It needs a phone that can change its Bluetooth device class; Android 16
   removed that API, so on most phones the Switch drops the connection.
+- **Motion** (all off by default, *Movimento* card): tilt steering on the left stick (max angle, dead
+  zone, curve, re-centre, optional Y from leaning) for every host, a shake gesture that presses a chosen
+  button, real gyro to the Switch sysmodule and the Bluetooth Pro Controller, and a DSU (cemuhook) server
+  on UDP 26760 for Cemu, Ryujinx, Dolphin, Citra and other emulators. A ⎈ button on the controller
+  screen toggles steering.
 
 ### Companion
 - Code split into a shared core and per-OS backends (`pc-companion/Core`, `Windows`, `Linux`).

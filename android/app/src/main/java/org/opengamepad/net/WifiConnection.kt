@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.opengamepad.macro.KeyboardState
+import org.opengamepad.motion.MotionSample
 import org.opengamepad.protocol.ControllerState
 import org.opengamepad.protocol.Feedback
 import org.opengamepad.protocol.Message
@@ -57,7 +58,7 @@ class WifiConnection(private val deviceId: Long) {
     val feedback: SharedFlow<Feedback> = _feedback
 
     private var tcp: Socket? = null
-    private var udp: DatagramSocket? = null
+    @Volatile private var udp: DatagramSocket? = null
     private var session: Job? = null
 
     fun connect(target: ConnectTarget) {
@@ -198,6 +199,21 @@ class WifiConnection(private val deviceId: Long) {
 
     fun send(state: ControllerState) {
         outgoing.trySend(state)
+    }
+
+    /**
+     * Gyro passthrough (type 17), over UDP only and only to OpenGamepad hosts. Called from the
+     * sensor thread: the datagram goes out directly, without waiting for the state loop.
+     */
+    fun sendMotion(sample: MotionSample) {
+        val socket = udp ?: return
+        if (!companion || _status.value !is ConnectionStatus.Connected) return
+        val packet = Wire.frame(Wire.TYPE_MOTION, sequence.getAndIncrement(), sample.encode())
+        try {
+            socket.send(DatagramPacket(packet, packet.size))
+        } catch (_: IOException) {
+            // the state loop reports broken links
+        }
     }
 
     /** PC keys from macros; only our companion understands them. */
