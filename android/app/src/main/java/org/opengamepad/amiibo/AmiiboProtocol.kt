@@ -59,7 +59,8 @@ object AmiiboProtocol {
         return ListPage(total, offset, flags and 1 != 0, paths)
     }
 
-    enum class Result { ACTIVE, CLEARED, NO_EMUIIBO, ERROR, NOT_FOUND }
+    /** [RESTART_GAME]: active, but the running game was started before emuiibo emulation was on. */
+    enum class Result { ACTIVE, CLEARED, NO_EMUIIBO, ERROR, NOT_FOUND, RESTART_GAME }
 
     class Status(val result: Result, val rc: Int, val text: String)
 

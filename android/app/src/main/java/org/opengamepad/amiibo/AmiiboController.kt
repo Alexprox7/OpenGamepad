@@ -89,13 +89,16 @@ class AmiiboController(
                 _messages.tryEmit(
                     when (status.result) {
                         AmiiboProtocol.Result.ACTIVE -> "Amiibo attivo: ${status.text}"
+                        AmiiboProtocol.Result.RESTART_GAME ->
+                            "Amiibo attivo: ${status.text} · riavvia il gioco: era aperto prima che emuiibo fosse attivo (solo questa volta)"
                         AmiiboProtocol.Result.CLEARED -> "Amiibo rimosso"
                         AmiiboProtocol.Result.NO_EMUIIBO -> "emuiibo non è attivo sulla Switch: installalo o avvialo"
                         AmiiboProtocol.Result.NOT_FOUND -> "Amiibo non trovato sulla Switch: ${status.text}"
                         AmiiboProtocol.Result.ERROR -> "Errore amiibo (0x%x): %s".format(status.rc, status.text)
                     },
                 )
-                if (status.result == AmiiboProtocol.Result.ACTIVE) refresh() // a new folder may exist now
+                // A new folder may exist now.
+                if (status.result == AmiiboProtocol.Result.ACTIVE || status.result == AmiiboProtocol.Result.RESTART_GAME) refresh()
             }
         }
     }

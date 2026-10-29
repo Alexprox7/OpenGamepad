@@ -116,6 +116,9 @@ a una combinazione nell'editor delle macro) e sceglilo.
 - *Switch*: gli amiibo virtuali già presenti in `sdmc:/emuiibo/amiibo`, con le loro cartelle.
 - *Rimuovi* toglie l'amiibo dal lettore.
 
+La prima volta l'emulazione di emuiibo viene attivata per te; un gioco già aperto va riavviato una
+volta (l'app lo segnala), perché emuiibo intercetta solo i giochi avviati con l'emulazione attiva.
+
 > **Nessun file amiibo è incluso o distribuito.** OpenGamepad legge solo i dump che crei tu dalle
 > statuette che possiedi (o gli amiibo virtuali già configurati in emuiibo). Non chiedere, condividere
 > né pubblicare dump amiibo nelle issue o nelle discussioni del progetto.

@@ -147,7 +147,7 @@ Over TCP, only with the `"OGP"` marker. The sysmodule drives
 | 18 list request | phone → console | u16 offset |
 | 19 list | console → phone | u16 total, u16 offset, u8 flags (bit 0: emuiibo running), u8 count, count × (u8 length, UTF‑8 path relative to `sdmc:/emuiibo/amiibo`) |
 | 20 activate | phone → console | u8 source, then: source 0 = UTF‑8 path from the list; source 1 = u8 id[8], u8 uid[7], u8 name length, name, u8 group length, group |
-| 21 status | console → phone | u8 result (0 active, 1 removed, 2 emuiibo missing, 3 error, 4 not found), u32 result code, UTF‑8 text |
+| 21 status | console → phone | u8 result (0 active, 1 removed, 2 emuiibo missing, 3 error, 4 not found, 5 active but the running game must be restarted), u32 result code, UTF‑8 text |
 | 22 clear | phone → console | — |
 
 The list is paged: the phone asks again with the next offset until it has `total` entries (offset 0

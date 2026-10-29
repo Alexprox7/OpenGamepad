@@ -36,8 +36,11 @@ Then in the app tap *Cerca* and pick *Nintendo Switch*, or type `<Switch IP>:478
 With emuiibo installed, the phone can list the virtual amiibo in `sdmc:/emuiibo/amiibo` (sub-folders
 included) and make one active, or send the id and UID of a dump stored on the phone: the module creates
 `emuiibo/amiibo/OpenGamepad/[group/]name/` once and activates it. It talks to emuiibo's `emuiibo` IPC
-service (commands 3, 5 and 8) and checks first that the service exists, so a console without emuiibo
-only gets an error message in the app. No amiibo files are included or distributed.
+service (commands 2, 3, 5, 8 and 9) and checks first that the service exists, so a console without
+emuiibo only gets an error message in the app. emuiibo only intercepts games started while its emulation
+is on: the first activation turns it on (emuiibo remembers it), and if a game was already running
+without interception the app asks to restart it once. Picking another amiibo lifts the previous one
+off the reader for 250 ms first, so the game sees a new tap. No amiibo files are included or distributed.
 
 ## Diagnostics
 

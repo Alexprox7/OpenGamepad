@@ -1,11 +1,16 @@
 // Amiibo through emuiibo. See amiibo.h and docs/PROTOCOL.md (types 18-22).
 //
 // emuiibo IPC ("emuiibo", all buffers HipcMapAlias), from its overlay client:
-//   3 SetEmulationStatus(u32: 0 on, 1 off)
+//   2 GetEmulationStatus() -> u32
+//   3 SetEmulationStatus(u32: 0 on, 1 off), saved by emuiibo in sdmc:/emuiibo/flags/status_on.flag
 //   5 SetActiveVirtualAmiibo(in buffer: folder path, exactly strlen bytes: emuiibo reads the
 //     whole buffer as the path, NULs included; success also marks the amiibo connected)
 //   6 ResetActiveVirtualAmiibo()
 //   8 SetActiveVirtualAmiiboStatus(u32: 1 connected, 2 disconnected)
+//   9 IsApplicationIdIntercepted(u64 program id) -> bool
+// emuiibo decides whether to intercept a game's nfp:user when the game opens it, from the
+// emulation status at that moment: a game started with emulation off never sees the amiibo
+// until it is restarted. A Connected amiibo is "tapped" as soon as the game scans.
 // A virtual amiibo is a folder under sdmc:/emuiibo/amiibo (sub-folders allowed) holding
 // amiibo.json and amiibo.flag; emuiibo creates the Mii and save areas when missing.
 
@@ -24,7 +29,10 @@
 #define LIST_FRAME_MAX   900           // keeps each reply well inside the socket buffer
 #define MAX_DEPTH        4
 
-enum { RESULT_ACTIVE = 0, RESULT_CLEARED = 1, RESULT_NO_EMUIIBO = 2, RESULT_ERROR = 3, RESULT_NOT_FOUND = 4 };
+enum {
+    RESULT_ACTIVE = 0, RESULT_CLEARED = 1, RESULT_NO_EMUIIBO = 2, RESULT_ERROR = 3, RESULT_NOT_FOUND = 4,
+    RESULT_RESTART_GAME = 5, // active, but the running game was started with emulation off
+};
 enum { SOURCE_CONSOLE = 0, SOURCE_PHONE = 1 };
 
 // ---------------------------------------------------------------------------------------
@@ -32,6 +40,7 @@ enum { SOURCE_CONSOLE = 0, SOURCE_PHONE = 1 };
 
 static Service emu;
 static bool emu_open;
+static bool tag_placed; // an amiibo is on the virtual reader
 
 /** sm would block until the service shows up: ask Atmosphère's sm first (command 65100). */
 static bool emuiibo_registered(void) {
@@ -57,6 +66,13 @@ static Result emu_connect(void) {
     return rc;
 }
 
+static Result emu_emulation_on(bool *on) {
+    u32 status = 1;
+    Result rc = serviceDispatchOut(&emu, 2, status);
+    *on = R_SUCCEEDED(rc) && status == 0;
+    return rc;
+}
+
 static Result emu_set_emulation(bool on) {
     u32 status = on ? 0 : 1;
     return serviceDispatchIn(&emu, 3, status);
@@ -71,6 +87,22 @@ static Result emu_set_active(const char *folder) {
 static Result emu_set_connected(bool connected) {
     u32 status = connected ? 1 : 2;
     return serviceDispatchIn(&emu, 8, status);
+}
+
+/** True when a game is running and emuiibo is not intercepting its NFC. */
+static bool game_not_intercepted(void) {
+    if (R_FAILED(smInitialize())) return false;
+    Result rc = pmdmntInitialize();
+    smExit();
+    if (R_FAILED(rc)) return false;
+    u64 pid = 0, program = 0;
+    rc = pmdmntGetApplicationProcessId(&pid); // fails when no game is running
+    if (R_SUCCEEDED(rc)) rc = pmdmntGetProgramId(&program, pid);
+    pmdmntExit();
+    if (R_FAILED(rc)) return false;
+    u8 intercepted = 1;
+    if (R_FAILED(serviceDispatchInOut(&emu, 9, program, intercepted))) return false;
+    return !intercepted;
 }
 
 /** Drops the session after an IPC error, so the next request reconnects (emuiibo restarted). */
@@ -261,11 +293,22 @@ static void activate(int fd, const char *folder, const char *label) {
         send_status(fd, RESULT_NO_EMUIIBO, rc, "emuiibo");
         return;
     }
-    // Emulation on first, like the overlay's toggle; a successful SetActive leaves it connected.
-    rc = emu_checked(emu_set_emulation(true));
+    bool was_on = false;
+    rc = emu_checked(emu_emulation_on(&was_on));
+    if (R_SUCCEEDED(rc) && !was_on) rc = emu_checked(emu_set_emulation(true));
+    // After an earlier pick the game may still hold the previous tag: lift it first, long
+    // enough for emuiibo's 100 ms poll to report the removal, so the new one is a fresh tap.
+    if (R_SUCCEEDED(rc) && tag_placed) {
+        emu_checked(emu_set_connected(false));
+        svcSleepThread(250000000ULL);
+    }
+    // A successful SetActive also marks the amiibo connected.
     if (R_SUCCEEDED(rc)) rc = emu_checked(emu_set_active(folder));
-    log_line("amiibo: %s → rc 0x%x", label, rc);
-    send_status(fd, R_SUCCEEDED(rc) ? RESULT_ACTIVE : RESULT_ERROR, rc, label);
+    tag_placed = R_SUCCEEDED(rc);
+    bool restart = tag_placed && !was_on && game_not_intercepted();
+    log_line("amiibo: %s → rc 0x%x%s%s", label, rc, was_on ? "" : ", emulazione attivata",
+             restart ? ", il gioco va riavviato" : "");
+    send_status(fd, R_FAILED(rc) ? RESULT_ERROR : restart ? RESULT_RESTART_GAME : RESULT_ACTIVE, rc, label);
 }
 
 static void handle_activate(int fd, const u8 *payload, size_t size) {
@@ -309,6 +352,7 @@ static void handle_activate(int fd, const u8 *payload, size_t size) {
 static void handle_clear(int fd) {
     Result rc = emu_connect();
     if (R_SUCCEEDED(rc)) rc = emu_checked(emu_set_connected(false));
+    if (R_SUCCEEDED(rc)) tag_placed = false;
     log_line("amiibo: rimosso dal lettore (rc 0x%x)", rc);
     send_status(fd, R_SUCCEEDED(rc) ? RESULT_CLEARED : RESULT_NO_EMUIIBO, rc, "");
 }

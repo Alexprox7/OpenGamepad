@@ -118,6 +118,9 @@ to any combo in the macro editor) and pick one.
 - *Switch*: the virtual amiibo already in `sdmc:/emuiibo/amiibo`, with their folders.
 - *Rimuovi* takes the amiibo off the reader.
 
+The first time, emuiibo emulation is switched on for you; a game that was already open has to be
+restarted once (the app says so), because emuiibo only intercepts games started with emulation on.
+
 > **No amiibo files are included or distributed.** OpenGamepad only reads dumps you make yourself
 > from figures you own (or virtual amiibo you already set up in emuiibo). Do not ask for, share or
 > publish amiibo dumps in this project's issues or discussions.
