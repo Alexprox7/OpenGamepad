@@ -3,6 +3,19 @@ package org.opengamepad.motion
 import org.json.JSONObject
 import org.opengamepad.protocol.Buttons
 
+/** What the controller's motion sensor reports to the Switch / Bluetooth Pro Controller. */
+enum class GyroMode {
+    /**
+     * Like shaking a Joy-Con: the controller always reads still and level (no rotation, so no
+     * camera or aiming), and only the phone's shakes come through as acceleration, scaled by
+     * [MotionSettings.shakeGain] to Joy-Con strength.
+     */
+    SHAKE,
+
+    /** The phone's full motion: rotation (gyro camera, aiming) and acceleration. */
+    FULL,
+}
+
 /** Motion options. Everything is off by default. Angles in degrees. */
 data class MotionSettings(
     /** Tilt steering: rolling the phone drives the left stick X. */
@@ -21,6 +34,9 @@ data class MotionSettings(
     val shakeSensitivity: Float = 0.5f,
     /** Real gyro to the Switch sysmodule (type 17) and the Bluetooth Pro Controller. */
     val gyro: Boolean = false,
+    val gyroMode: GyroMode = GyroMode.SHAKE,
+    /** [GyroMode.SHAKE]: factor applied to the phone's linear acceleration. */
+    val shakeGain: Float = 2.5f,
     /** DSU (cemuhook) server for PC emulators on UDP [DSU_PORT]. */
     val dsu: Boolean = false,
 ) {
@@ -39,6 +55,8 @@ data class MotionSettings(
         .put("shakeButton", shakeButton)
         .put("shakeSensitivity", shakeSensitivity.toDouble())
         .put("gyro", gyro)
+        .put("gyroMode", gyroMode.name)
+        .put("shakeGain", shakeGain.toDouble())
         .put("dsu", dsu)
         .toString()
 
@@ -64,6 +82,8 @@ data class MotionSettings(
                     shakeButton = o.optInt("shakeButton", d.shakeButton),
                     shakeSensitivity = o.optDouble("shakeSensitivity", d.shakeSensitivity.toDouble()).toFloat().coerceIn(0f, 1f),
                     gyro = o.optBoolean("gyro", d.gyro),
+                    gyroMode = runCatching { GyroMode.valueOf(o.optString("gyroMode")) }.getOrDefault(d.gyroMode),
+                    shakeGain = o.optDouble("shakeGain", d.shakeGain.toDouble()).toFloat().coerceIn(1f, 5f),
                     dsu = o.optBoolean("dsu", d.dsu),
                 )
             }.getOrDefault(MotionSettings())

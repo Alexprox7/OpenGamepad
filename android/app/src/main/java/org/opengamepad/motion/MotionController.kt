@@ -54,6 +54,7 @@ class MotionController(
     private var handler: Handler? = null
     private var resumed = false
     private var registered = emptySet<Sensor>()
+    private var registeredRate = 0
     private var gyroActive = false
 
     // Controller-frame vectors, touched only on the sensor thread.
@@ -126,20 +127,26 @@ class MotionController(
         if (resumed && s.needsGyro && hasGyro) {
             wanted += gyroSensor!!
             wanted += accelSensor!!
+            // Shake-only mode separates shakes from gravity.
+            if (s.gyro && s.gyroMode == GyroMode.SHAKE) gravitySensor?.let(wanted::add)
         }
         if (resumed && s.dsu) dsu.start() else dsu.stop()
         // Paused or switched off: hosts must not keep the last (possibly tilted) sample.
         val gyroNow = resumed && s.gyro && hasGyro
         if (gyroActive && !gyroNow) onSample(null)
         gyroActive = gyroNow
-        if (wanted != registered) {
+        // 200 Hz for the controller's motion sensor: short shake peaks must not fall between
+        // samples. Tilt and shake presses are fine at 100 Hz.
+        val rate = if (resumed && s.gyro) FAST_SAMPLING_US else SAMPLING_US
+        if (wanted != registered || rate != registeredRate) {
             sensors?.unregisterListener(this)
             if (wanted.isNotEmpty()) {
                 val h = handler ?: HandlerThread("motion").also { it.start(); thread = it }
                     .let { Handler(it.looper) }.also { handler = it }
-                for (sensor in wanted) sensors?.registerListener(this, sensor, SAMPLING_US, h)
+                for (sensor in wanted) sensors?.registerListener(this, sensor, rate, h)
             }
             registered = wanted
+            registeredRate = rate
             haveGravity = false
             haveAccel = false
         }
@@ -226,8 +233,25 @@ class MotionController(
         if (!haveAccel || timestampNs - lastSampleNs < MIN_SAMPLE_INTERVAL_NS) return
         lastSampleNs = timestampNs
         val sample = MotionSample(timestampNs, accel[0], accel[1], accel[2], gyro[0], gyro[1], gyro[2])
-        if (s.gyro) onSample(sample)
+        if (s.gyro) onSample(if (s.gyroMode == GyroMode.SHAKE) shakeOnly(sample, s.shakeGain) else sample)
         if (s.dsu) dsu.publish(sample)
+    }
+
+    /**
+     * Joy-Con-style shakes: a controller held still and level (1 g out of the screen, no
+     * rotation) plus the phone's linear acceleration scaled by [gain]. Tilting or turning the
+     * phone changes nothing; only shaking does.
+     */
+    private fun shakeOnly(sample: MotionSample, gain: Float): MotionSample {
+        if (!haveGravity) return sample.copy(accelX = 0f, accelY = 0f, accelZ = 1f, gyroX = 0f, gyroY = 0f, gyroZ = 0f)
+        val g = SensorManager.GRAVITY_EARTH
+        return MotionSample(
+            sample.timestampNs,
+            accelX = (accel[0] - gravity[0] / g) * gain,
+            accelY = (accel[1] - gravity[1] / g) * gain,
+            accelZ = 1f + (accel[2] - gravity[2] / g) * gain,
+            gyroX = 0f, gyroY = 0f, gyroZ = 0f,
+        )
     }
 
     /** Buttons and sticks for the DSU server, from the final output (macros included). */
@@ -257,7 +281,8 @@ class MotionController(
 
     private companion object {
         const val SAMPLING_US = 10_000 // 100 Hz
-        const val MIN_SAMPLE_INTERVAL_NS = 9_000_000L
+        const val FAST_SAMPLING_US = 5_000 // 200 Hz
+        const val MIN_SAMPLE_INTERVAL_NS = 4_500_000L
         const val RAD_TO_DEG = (180.0 / Math.PI).toFloat()
     }
 }

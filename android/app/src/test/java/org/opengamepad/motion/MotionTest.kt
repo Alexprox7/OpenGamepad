@@ -273,4 +273,16 @@ class MotionTest {
         assertNear(-36 + (0x343B + 36) / 10, b.getShort(22).toInt())
         assertEquals(0, report[48].toInt())
     }
+
+    @Test
+    fun gyroModeDefaultsToShakeAndRoundTrips() {
+        assertEquals(GyroMode.SHAKE, MotionSettings().gyroMode)
+        // Settings saved before the option existed: shake-only, default strength.
+        val old = MotionSettings.parse("""{"gyro":true}""")
+        assertEquals(GyroMode.SHAKE, old.gyroMode)
+        assertEquals(2.5f, old.shakeGain)
+        val full = MotionSettings(gyro = true, gyroMode = GyroMode.FULL, shakeGain = 4f)
+        assertEquals(full, MotionSettings.parse(full.toJson()))
+        assertEquals(5f, MotionSettings.parse("""{"shakeGain":40}""").shakeGain)
+    }
 }

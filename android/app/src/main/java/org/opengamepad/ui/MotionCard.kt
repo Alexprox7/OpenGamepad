@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.opengamepad.motion.GyroMode
 import org.opengamepad.motion.MotionController
 import org.opengamepad.motion.MotionSettings
 import org.opengamepad.protocol.Buttons
@@ -113,9 +114,37 @@ fun MotionCard(motion: MotionController) {
                     Text("Giroscopio non disponibile su questo telefono", color = Muted, fontSize = 13.sp)
                     return@Column
                 }
-                Toggle("Giroscopio reale per Switch", s.gyro) { on -> set { it.copy(gyro = on) } }
-                Text("Sysmodule OpenGamepad via Wi‑Fi e Pro Controller Bluetooth. Su PC/Xbox non ha effetto.",
+                Toggle("Sensore di movimento per Switch", s.gyro) { on -> set { it.copy(gyro = on) } }
+                Text("Il controller virtuale ha il sensore come un Joy-Con (sysmodule via Wi‑Fi, Pro Controller Bluetooth). Su PC/Xbox non ha effetto.",
                     color = Faint, fontSize = 12.sp)
+                if (s.gyro) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = s.gyroMode == GyroMode.SHAKE,
+                            onClick = { set { it.copy(gyroMode = GyroMode.SHAKE) } },
+                            label = { Text("Solo scuotimento") },
+                        )
+                        FilterChip(
+                            selected = s.gyroMode == GyroMode.FULL,
+                            onClick = { set { it.copy(gyroMode = GyroMode.FULL) } },
+                            label = { Text("Completo") },
+                        )
+                    }
+                    if (s.gyroMode == GyroMode.SHAKE) {
+                        Text("Agita il telefono come un Joy-Con (es. lancio del cappello in Mario Odyssey): il gioco lo legge dal sensore, la visuale non si muove.",
+                            color = Faint, fontSize = 12.sp)
+                        Setting("Forza scossa", "×%.1f".format(s.shakeGain), s.shakeGain, 1f..5f) { v ->
+                            set { it.copy(shakeGain = (v * 2).roundToInt() / 2f) }
+                        }
+                    } else {
+                        Text("Anche la rotazione del telefono: visuale e mira con il giroscopio, sterzo nei giochi che lo usano.",
+                            color = Faint, fontSize = 12.sp)
+                    }
+                    if (s.steering) {
+                        Text("Attenzione: «Sterzo inclinando» è attivo e muove lo stick sinistro quando inclini il telefono.",
+                            color = Color(0xFFE0B050), fontSize = 12.sp)
+                    }
+                }
                 Toggle("Server DSU per emulatori", s.dsu) { on -> set { it.copy(dsu = on) } }
                 Text("Cemu, Ryujinx, Dolphin, Citra… ricevono il movimento via Wi‑Fi.", color = Faint, fontSize = 12.sp)
                 if (s.dsu) {
