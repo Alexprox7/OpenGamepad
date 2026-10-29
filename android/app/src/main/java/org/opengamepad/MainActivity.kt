@@ -262,6 +262,7 @@ class MainActivity : ComponentActivity() {
                     rawInput = input.state,
                     onConfig = { applyMacros(it, save = true) },
                     onAdvanced = { showJson = true },
+                    dynamicRadials = macros.dynamicRadialIds,
                     onClose = { showMacros = false },
                 )
             } else if (showPad) {
@@ -281,6 +282,8 @@ class MainActivity : ComponentActivity() {
                         input.resetTouch()
                         showPad = false
                     },
+                    onRadialTap = macros::tapSlice,
+                    onRadialBack = macros::radialBack,
                 )
             } else {
                 ConnectScreen(

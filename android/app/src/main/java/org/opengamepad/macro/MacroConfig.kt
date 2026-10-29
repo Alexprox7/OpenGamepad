@@ -47,11 +47,35 @@ data class RadialSlice(
     val icon: String = "",
     val color: Long = DEFAULT_SLICE_COLOR,
     val actions: List<Action> = emptyList(),
-)
+    /** Id of the radial menu this slice opens (a folder) instead of running [actions]. */
+    val submenu: String? = null,
+    /** Free identifier reported to dynamic menus when this slice is picked. */
+    val key: String = "",
+    /** Runtime only (dynamic menus, never saved): child wheel opened like [submenu]. */
+    val folder: RadialMenu? = null,
+) {
+    val isFolder: Boolean get() = submenu != null || folder != null
+}
 
 const val DEFAULT_SLICE_COLOR = 0xFF3A3F4AL
 
-data class RadialMenu(val id: String, val stick: Stick, val slices: List<RadialSlice>)
+/** Ids starting with this prefix name menus registered at runtime with [MacroEngine.registerDynamicRadial]. */
+const val DYNAMIC_RADIAL_PREFIX = "@"
+
+enum class RadialMode {
+    /** Open while the combo is held; the highlighted slice runs on release. */
+    HOLD,
+
+    /** Stays open after the combo is released; A, a tap or the combo again confirms, B goes back. */
+    STICKY,
+}
+
+data class RadialMenu(
+    val id: String,
+    val stick: Stick,
+    val slices: List<RadialSlice>,
+    val mode: RadialMode = RadialMode.HOLD,
+)
 
 data class MacroConfig(
     val macros: List<Macro>,
@@ -86,12 +110,15 @@ data class MacroConfig(
                 put(JSONObject().apply {
                     put("id", r.id)
                     put("stick", r.stick.name)
+                    if (r.mode != RadialMode.HOLD) put("mode", r.mode.name)
                     put("slices", JSONArray().apply {
                         r.slices.forEach { slice ->
                             put(JSONObject().apply {
                                 put("label", slice.label)
                                 if (slice.icon.isNotEmpty()) put("icon", slice.icon)
                                 put("color", "#%06X".format(slice.color and 0xFFFFFF))
+                                if (slice.key.isNotEmpty()) put("key", slice.key)
+                                if (slice.submenu != null) put("submenu", slice.submenu)
                                 put("actions", actionsJson(slice.actions))
                             })
                         }
@@ -150,14 +177,22 @@ data class MacroConfig(
                             icon = s.optString("icon"),
                             color = color(s.optString("color")),
                             actions = actions(s.optJSONArray("actions"), "spicchio ${s.optString("label")}"),
+                            submenu = s.optString("submenu").takeIf { it.isNotEmpty() },
+                            key = s.optString("key"),
                         )
                     },
+                    mode = mode(r.optString("mode", "HOLD")),
                 )
+            }
+            fun exists(id: String) = id in radials || id.startsWith(DYNAMIC_RADIAL_PREFIX)
+            for (r in radials.values) for (slice in r.slices) {
+                val sub = slice.submenu ?: continue
+                if (!exists(sub)) throw IllegalArgumentException("${r.id}: spicchio ${slice.label} apre la ruota \"$sub\" inesistente")
             }
             val macros = root.optJSONArray("macros").objects().map { m ->
                 val name = m.optString("name", "macro")
                 val radial = m.optString("radial").takeIf { it.isNotEmpty() }
-                if (radial != null && radial !in radials) throw IllegalArgumentException("$name: ruota \"$radial\" inesistente")
+                if (radial != null && !exists(radial)) throw IllegalArgumentException("$name: ruota \"$radial\" inesistente")
                 Macro(
                     name = name,
                     trigger = trigger(m.getJSONObject("trigger"), name),
@@ -231,6 +266,12 @@ data class MacroConfig(
             "LEFT", "L" -> Stick.LEFT
             "RIGHT", "R" -> Stick.RIGHT
             else -> throw IllegalArgumentException("stick sconosciuto \"$name\" (LEFT o RIGHT)")
+        }
+
+        private fun mode(name: String) = when (name.uppercase()) {
+            "HOLD" -> RadialMode.HOLD
+            "STICKY" -> RadialMode.STICKY
+            else -> throw IllegalArgumentException("modo ruota sconosciuto \"$name\" (HOLD o STICKY)")
         }
 
         private fun JSONArray?.objects(): List<JSONObject> =
