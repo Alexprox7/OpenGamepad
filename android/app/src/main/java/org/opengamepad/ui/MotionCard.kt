@@ -62,10 +62,51 @@ fun MotionCard(motion: MotionController) {
             return@Card
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            // Real gyro
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (!motion.hasGyro) {
+                    Text("Giroscopio non disponibile su questo telefono", color = Muted, fontSize = 13.sp)
+                    return@Column
+                }
+                Toggle("Sensore di movimento (come Joy-Con)", s.gyro) { on -> set { it.copy(gyro = on) } }
+                Text("Il controller virtuale ha il sensore come un Joy-Con (sysmodule via Wi‑Fi, Pro Controller Bluetooth). Su PC/Xbox non ha effetto.",
+                    color = Faint, fontSize = 12.sp)
+                if (s.gyro) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = s.gyroMode == GyroMode.SHAKE,
+                            onClick = { set { it.copy(gyroMode = GyroMode.SHAKE) } },
+                            label = { Text("Solo scuotimento") },
+                        )
+                        FilterChip(
+                            selected = s.gyroMode == GyroMode.FULL,
+                            onClick = { set { it.copy(gyroMode = GyroMode.FULL) } },
+                            label = { Text("Completo") },
+                        )
+                    }
+                    if (s.gyroMode == GyroMode.SHAKE) {
+                        Text("Agita il telefono come un Joy-Con (es. lancio del cappello in Mario Odyssey): il gioco lo legge dal sensore, la visuale non si muove.",
+                            color = Faint, fontSize = 12.sp)
+                        Setting("Forza scossa", "×%.1f".format(s.shakeGain), s.shakeGain, 1f..5f) { v ->
+                            set { it.copy(shakeGain = (v * 2).roundToInt() / 2f) }
+                        }
+                    } else {
+                        Text("Anche la rotazione del telefono: visuale e mira con il giroscopio, sterzo nei giochi che lo usano.",
+                            color = Faint, fontSize = 12.sp)
+                    }
+                }
+                Toggle("Server DSU per emulatori", s.dsu) { on -> set { it.copy(dsu = on) } }
+                Text("Cemu, Ryujinx, Dolphin, Citra… ricevono il movimento via Wi‑Fi.", color = Faint, fontSize = 12.sp)
+                if (s.dsu) {
+                    val addresses = motion.localAddresses().joinToString(" · ").ifEmpty { "nessuna rete" }
+                    Text("Nell'emulatore: server $addresses, porta ${MotionSettings.DSU_PORT}", color = Muted, fontSize = 13.sp)
+                    if (dsuStatus.isNotEmpty()) Text(dsuStatus, color = Muted, fontSize = 12.sp)
+                }
+            }
             // Tilt steering
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Toggle("Sterzo inclinando", s.steering) { on -> set { it.copy(steering = on) } }
-                Text("Ruota il telefono come un volante: muove lo stick sinistro. Funziona con tutti i dispositivi.",
+                Toggle("Sterzo inclinando (stick)", s.steering) { on -> set { it.copy(steering = on) } }
+                Text("Ruota il telefono come un volante: muove lo stick sinistro, anche su PC. Spegne il sensore di movimento.",
                     color = Faint, fontSize = 12.sp)
                 if (s.steering) {
                     SteerBar(steer ?: 0f)
@@ -106,51 +147,6 @@ fun MotionCard(motion: MotionController) {
                     Setting("Sensibilità", "${(s.shakeSensitivity * 100).roundToInt()}%", s.shakeSensitivity, 0f..1f) { v ->
                         set { it.copy(shakeSensitivity = (v * 20).roundToInt() / 20f) }
                     }
-                }
-            }
-            // Real gyro
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (!motion.hasGyro) {
-                    Text("Giroscopio non disponibile su questo telefono", color = Muted, fontSize = 13.sp)
-                    return@Column
-                }
-                Toggle("Sensore di movimento per Switch", s.gyro) { on -> set { it.copy(gyro = on) } }
-                Text("Il controller virtuale ha il sensore come un Joy-Con (sysmodule via Wi‑Fi, Pro Controller Bluetooth). Su PC/Xbox non ha effetto.",
-                    color = Faint, fontSize = 12.sp)
-                if (s.gyro) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(
-                            selected = s.gyroMode == GyroMode.SHAKE,
-                            onClick = { set { it.copy(gyroMode = GyroMode.SHAKE) } },
-                            label = { Text("Solo scuotimento") },
-                        )
-                        FilterChip(
-                            selected = s.gyroMode == GyroMode.FULL,
-                            onClick = { set { it.copy(gyroMode = GyroMode.FULL) } },
-                            label = { Text("Completo") },
-                        )
-                    }
-                    if (s.gyroMode == GyroMode.SHAKE) {
-                        Text("Agita il telefono come un Joy-Con (es. lancio del cappello in Mario Odyssey): il gioco lo legge dal sensore, la visuale non si muove.",
-                            color = Faint, fontSize = 12.sp)
-                        Setting("Forza scossa", "×%.1f".format(s.shakeGain), s.shakeGain, 1f..5f) { v ->
-                            set { it.copy(shakeGain = (v * 2).roundToInt() / 2f) }
-                        }
-                    } else {
-                        Text("Anche la rotazione del telefono: visuale e mira con il giroscopio, sterzo nei giochi che lo usano.",
-                            color = Faint, fontSize = 12.sp)
-                    }
-                    if (s.steering) {
-                        Text("Attenzione: «Sterzo inclinando» è attivo e muove lo stick sinistro quando inclini il telefono.",
-                            color = Color(0xFFE0B050), fontSize = 12.sp)
-                    }
-                }
-                Toggle("Server DSU per emulatori", s.dsu) { on -> set { it.copy(dsu = on) } }
-                Text("Cemu, Ryujinx, Dolphin, Citra… ricevono il movimento via Wi‑Fi.", color = Faint, fontSize = 12.sp)
-                if (s.dsu) {
-                    val addresses = motion.localAddresses().joinToString(" · ").ifEmpty { "nessuna rete" }
-                    Text("Nell'emulatore: server $addresses, porta ${MotionSettings.DSU_PORT}", color = Muted, fontSize = 13.sp)
-                    if (dsuStatus.isNotEmpty()) Text(dsuStatus, color = Muted, fontSize = 12.sp)
                 }
             }
         }

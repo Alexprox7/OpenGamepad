@@ -74,7 +74,11 @@ class MotionController(
     @Synchronized
     fun update(transform: (MotionSettings) -> MotionSettings) {
         val old = _settings.value
-        val new = transform(old)
+        var new = transform(old)
+        // The motion sensor and tilt steering exclude each other: with both on, shaking the
+        // phone like a Joy-Con would also tilt it and walk the character.
+        if (new.gyro && !old.gyro) new = new.copy(steering = false)
+        if (new.steering && !old.steering) new = new.copy(gyro = false)
         if (new == old) return
         // Turning steering (or the Y axis) on takes the current position as the center.
         if ((new.steering && !old.steering) || (new.pitchY && !old.pitchY)) recenterPending = true
