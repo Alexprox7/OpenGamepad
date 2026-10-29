@@ -147,7 +147,11 @@ fun MacroEditScreen(
                     FilterChip(selected = macro.radial == id, onClick = { macro = macro.copy(radial = id) }, label = { Text(id) })
                 }
             }
-            Text("Tieni premuta la combinazione, scegli con lo stick e rilascia.", color = Muted)
+            Text(
+                "Scegli con lo stick. Le ruote \"Tieni premuto\" si confermano rilasciando la combinazione, " +
+                    "quelle \"Resta aperta\" con A, un tocco o la combinazione di nuovo.",
+                color = Muted,
+            )
         } else {
             ActionListEditor(macro.actions) { macro = macro.copy(actions = it) }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

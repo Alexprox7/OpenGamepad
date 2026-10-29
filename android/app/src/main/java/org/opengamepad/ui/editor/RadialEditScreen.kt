@@ -35,22 +35,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.opengamepad.macro.DYNAMIC_RADIAL_PREFIX
 import org.opengamepad.macro.RadialMenu
+import org.opengamepad.macro.RadialMode
 import org.opengamepad.macro.RadialSlice
 import org.opengamepad.macro.Stick
 import org.opengamepad.ui.RadialWheel
 
 private const val MAX_SLICES = 12
 
-/** Edits a radial menu: live preview on the left, the selected slice on the right. */
+/**
+ * Edits a radial menu: live preview on the left, the selected slice on the right.
+ * A slice can be a folder that opens another wheel ([folderTargets]); [onOpenSubmenu] saves
+ * this wheel and edits that one (`target` null = create a new one for the slice at `index`).
+ * [trail] names the wheels opened to get here, this one last.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RadialEditScreen(
     initial: RadialMenu,
     takenIds: Set<String>,
+    folderTargets: List<String>,
+    trail: List<String>,
     onSave: (RadialMenu) -> Unit,
     onDelete: (() -> Unit)?,
     onCancel: () -> Unit,
+    onOpenSubmenu: (menu: RadialMenu, index: Int, target: String?) -> Unit,
 ) {
     BackHandler(onBack = onCancel)
     var menu by remember { mutableStateOf(initial) }
@@ -63,6 +73,11 @@ fun RadialEditScreen(
     fun updateSlice(transform: (RadialSlice) -> RadialSlice) {
         menu = menu.copy(slices = menu.slices.toMutableList().also { it[selected] = transform(it[selected]) })
     }
+    // A folder slice whose wheel is not chosen yet has submenu = "".
+    val unchosen = menu.slices.indices.filter { menu.slices[it].submenu == "" }
+    val canSave = idError == null && menu.slices.isNotEmpty() && unchosen.isEmpty()
+    // Folders run no actions.
+    fun cleaned() = menu.copy(slices = menu.slices.map { if (it.isFolder) it.copy(actions = emptyList()) else it })
 
     Row(
         Modifier
@@ -80,8 +95,12 @@ fun RadialEditScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { onSave(menu) }, enabled = idError == null && menu.slices.isNotEmpty()) { Text("Salva") }
-                OutlinedButton(onClick = onCancel) { Text("Annulla") }
+                Button(onClick = { onSave(cleaned()) }, enabled = canSave) { Text("Salva") }
+                OutlinedButton(onClick = onCancel) { Text(if (trail.size > 1) "‹ Indietro" else "Annulla") }
+            }
+            if (trail.size > 1) Text(trail.joinToString("  ›  "), color = Muted, fontSize = 13.sp)
+            if (unchosen.isNotEmpty()) {
+                Text("Scegli la sotto-ruota dello spicchio ${unchosen.first() + 1}", color = Color(0xFFEB5757), fontSize = 12.sp)
             }
             OutlinedTextField(
                 value = menu.id,
@@ -101,6 +120,28 @@ fun RadialEditScreen(
                     )
                 }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Apertura:", color = Muted)
+                FilterChip(
+                    selected = menu.mode == RadialMode.HOLD,
+                    onClick = { menu = menu.copy(mode = RadialMode.HOLD) },
+                    label = { Text("Tieni premuto") },
+                )
+                FilterChip(
+                    selected = menu.mode == RadialMode.STICKY,
+                    onClick = { menu = menu.copy(mode = RadialMode.STICKY) },
+                    label = { Text("Resta aperta") },
+                )
+            }
+            Text(
+                if (menu.mode == RadialMode.HOLD) {
+                    "Visibile finché tieni la combinazione: rilascia per scegliere. Su una cartella resta fermo un attimo per aprirla."
+                } else {
+                    "Resta aperta dopo il rilascio: scegli con lo stick, conferma con A, un tocco o la combinazione; B torna indietro o chiude."
+                },
+                color = Muted,
+                fontSize = 12.sp,
+            )
             RadialWheel(
                 menu,
                 highlighted = selected.takeIf { it in menu.slices.indices },
@@ -168,8 +209,50 @@ fun RadialEditScreen(
             EmojiPicker(slice.icon) { v -> updateSlice { it.copy(icon = v) } }
             Text("Colore di sfondo", color = Muted, fontSize = 13.sp)
             ColorPalette(slice.color) { v -> updateSlice { it.copy(color = v) } }
-            Text("Azione quando lo scegli", color = Muted, fontSize = 13.sp)
-            ActionListEditor(slice.actions) { v -> updateSlice { it.copy(actions = v) } }
+            Text("Quando lo scegli", color = Muted, fontSize = 13.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !slice.isFolder,
+                    onClick = { updateSlice { it.copy(submenu = null) } },
+                    label = { Text("Esegue azioni") },
+                )
+                FilterChip(
+                    selected = slice.isFolder,
+                    onClick = { if (!slice.isFolder) updateSlice { it.copy(submenu = "") } },
+                    label = { Text("📁 Apre una sotto-ruota") },
+                )
+            }
+            if (slice.isFolder) {
+                val targets = folderTargets.filter { it != menu.id && it != initial.id }
+                if (targets.isNotEmpty()) Text("Ruota da aprire", color = Muted, fontSize = 13.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    targets.forEach { id ->
+                        FilterChip(
+                            selected = slice.submenu == id,
+                            onClick = { updateSlice { it.copy(submenu = id) } },
+                            label = { Text(if (id.startsWith(DYNAMIC_RADIAL_PREFIX)) "⚡ ${id.removePrefix(DYNAMIC_RADIAL_PREFIX)}" else id) },
+                        )
+                    }
+                    AssistChip(
+                        onClick = { onOpenSubmenu(cleaned(), selected, null) },
+                        enabled = idError == null && (unchosen - selected).isEmpty(),
+                        label = { Text("+ Nuova sotto-ruota") },
+                    )
+                }
+                val target = slice.submenu
+                if (target != null && target in takenIds) {
+                    OutlinedButton(onClick = { onOpenSubmenu(cleaned(), selected, target) }, enabled = canSave) {
+                        Text("Modifica \"$target\" ›")
+                    }
+                }
+                Text(
+                    "Aprire una sotto-ruota salva prima questa. B torna alla ruota precedente.",
+                    color = Muted,
+                    fontSize = 12.sp,
+                )
+            } else {
+                ActionListEditor(slice.actions) { v -> updateSlice { it.copy(actions = v) } }
+            }
         }
     }
 }

@@ -36,6 +36,8 @@ fun ControllerScreen(
     nintendoLayout: Boolean = false,
     onScreenSaver: () -> Unit,
     onDisconnect: () -> Unit,
+    onRadialTap: (Int) -> Unit = {},
+    onRadialBack: () -> Unit = {},
 ) {
     fun button(mask: Int): (Boolean) -> Unit = { down -> input.touch { it.with(mask, down) } }
 
@@ -111,7 +113,7 @@ fun ControllerScreen(
         // Above the black layer: the wheel must stay visible in OLED mode.
         radial?.let {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f)))
-            RadialMenuOverlay(it)
+            RadialMenuOverlay(it, nintendoLayout = nintendoLayout, onTap = onRadialTap, onBack = onRadialBack)
         }
     }
 }
