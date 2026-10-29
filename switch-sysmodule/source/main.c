@@ -17,6 +17,7 @@
 
 #include <switch.h>
 #include "amiibo.h"
+#include "probe.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -434,6 +435,10 @@ static void read_discovery(int fd) {
     } else if (strncmp(packet, "OGP-STATUS", 10) == 0) {
         size_t len = build_status(status_buffer, sizeof(status_buffer));
         sendto(fd, status_buffer, len, 0, (struct sockaddr *)&from, from_len);
+    } else if (strncmp(packet, "OGP-PROBE-END", 13) == 0) {
+        probe_stop();
+    } else if (strncmp(packet, "OGP-PROBE", 9) == 0) {
+        probe_start();
     }
 }
 
@@ -536,6 +541,7 @@ static void handle_power_request(void) {
         if (!suspended) {
             log_line(state == PscPmState_ReadySleep ? "sospensione: chiudo connessioni e controller" : "spegnimento");
             for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i], "console in sospensione");
+            probe_stop();
             if (listener >= 0) close(listener);
             if (udp >= 0) close(udp);
             if (discovery >= 0) close(discovery);
