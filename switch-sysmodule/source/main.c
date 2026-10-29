@@ -4,6 +4,9 @@
 // Protocol (see docs/PROTOCOL.md): the phone opens TCP to port 47800 and sends a hello;
 // the reply announces the UDP port for controller states. States can also arrive on TCP.
 //
+// Motion: type-17 packets (accelerometer + gyroscope in the phone's controller frame) feed the
+// virtual six-axis sensor of the HDLS Pro Controller, on HOS 12.0.0+ where HdlsState has it.
+//
 // Diagnostics: events go to sdmc:/config/OpenGamepad/log.txt, and "OGP-STATUS" sent to
 // UDP 47801 returns the latest lines, so the log can be read over Wi-Fi.
 //
@@ -34,10 +37,13 @@
 #define TX_HEADER       5   // console -> phone: len, major, minor, type
 #define TYPE_HELLO      0
 #define TYPE_STATE      1
+#define TYPE_MOTION     17  // OpenGamepad extension: u32 µs, i16 accel mg ×3, i16 gyro 0.1°/s ×3
+#define MOTION_SIZE     16
 #define OS_SWITCH       4
 #define SECOND_NS       1000000000ULL
 #define CLIENT_TIMEOUT_NS (10 * SECOND_NS)
 #define REOPEN_DELAY_NS   (2 * SECOND_NS)
+#define MOTION_IDLE_NS    (SECOND_NS / 2)
 #define LOG_DIR         "sdmc:/config/OpenGamepad"
 #define LOG_PATH        LOG_DIR "/log.txt"
 // PSC has no registry of module ids: this one is arbitrary ("GP"). Others in use: sys-con 126,
@@ -175,9 +181,21 @@ typedef struct {
     u64 last_seen;
     u32 states;                 // controller states received
     Result last_rc;             // last hiddbgSetHdlsState result, logged when it changes
+    u64 last_motion;            // time of the latest motion sample, 0 when at rest
+    u32 motion_time;            // phone timestamp of that sample (µs)
+    u32 motions;                // motion samples received
 } Client;
 
 static Client clients[MAX_CLIENTS];
+// HdlsState carries the virtual six-axis sensor (attribute, acceleration, angle) from 12.0.0;
+// libnx converts the struct to the older layouts, which drop those fields.
+static bool six_axis;
+
+/** Controller lying flat and still: gravity on -z (see apply_motion for the axes). */
+static void motion_rest(Client *c) {
+    c->state.six_axis_sensor_acceleration = (HidVector){ 0.0f, 0.0f, -1.0f };
+    c->last_motion = 0;
+}
 
 static bool attach_pad(Client *c) {
     HiddbgHdlsDeviceInfo info = {0};
@@ -194,6 +212,11 @@ static bool attach_pad(Client *c) {
     }
     memset(&c->state, 0, sizeof(c->state));
     c->state.battery_level = 4;
+    if (six_axis) {
+        c->state.attribute = HiddbgHdlsAttribute_HasVirtualSixAxisSensorAcceleration |
+                             HiddbgHdlsAttribute_HasVirtualSixAxisSensorAngle;
+        motion_rest(c);
+    }
     c->attached = true;
     c->last_rc = hiddbgSetHdlsState(c->pad, &c->state);
     log_line("controller virtuale creato per %s (stato rc 0x%x)", inet_ntoa(c->addr), c->last_rc);
@@ -211,6 +234,16 @@ static void close_client(Client *c, const char *reason) {
 
 static inline u16 rd16(const u8 *p) { return (u16)(p[0] | (p[1] << 8)); }
 static inline s16 rds16(const u8 *p) { return (s16)rd16(p); }
+static inline u32 rd32(const u8 *p) { return (u32)rd16(p) | ((u32)rd16(p + 2) << 16); }
+
+static void push_state(Client *c) {
+    if (!c->attached) return;
+    Result rc = hiddbgSetHdlsState(c->pad, &c->state);
+    if (rc != c->last_rc) {
+        log_line("aggiornamento controller di %s: rc 0x%x", inet_ntoa(c->addr), rc);
+        c->last_rc = rc;
+    }
+}
 
 /** XUSB state (Xbox layout) → Pro Controller, by position: Xbox A (bottom) = Switch B. */
 static void apply_state(Client *c, const u8 *p, bool udp) {
@@ -241,12 +274,39 @@ static void apply_state(Client *c, const u8 *p, bool udp) {
     c->state.analog_stick_r.y = rds16(p + 8);
     c->last_seen = now_ns();
     if (c->states++ == 0) log_line("primo stato da %s via %s", inet_ntoa(c->addr), udp ? "UDP" : "TCP");
-    if (!c->attached) return;
-    Result rc = hiddbgSetHdlsState(c->pad, &c->state);
-    if (rc != c->last_rc) {
-        log_line("aggiornamento controller di %s: rc 0x%x", inet_ntoa(c->addr), rc);
-        c->last_rc = rc;
+    push_state(c);
+}
+
+/**
+ * Motion sample → virtual six-axis sensor. The phone sends its controller frame (x right edge,
+ * y top edge, z out of the screen; proper acceleration, +1 g up at rest; right-handed rates).
+ * The Switch frame has z pointing into the controller (lying flat face up it reads z = -1 g),
+ * so z is negated for both vectors. Acceleration is in g; the angle is the rotation integrated
+ * per axis in revolutions (1.0 = 360°), like HidSixAxisSensorState.angle.
+ */
+static void apply_motion(Client *c, const u8 *p) {
+    c->last_seen = now_ns();
+    if (!six_axis || !c->attached) return;
+    u32 t = rd32(p);
+    float dt = 0.0f;
+    if (c->last_motion) {
+        s32 delta = (s32)(t - c->motion_time);
+        if (delta <= 0) return;                     // late UDP packet: already past it
+        dt = delta > 100000 ? 0.1f : delta / 1e6f;  // after a gap, do not extrapolate further
     }
+    if (c->motions++ == 0) log_line("primo dato di movimento da %s", inet_ntoa(c->addr));
+    c->motion_time = t;
+    c->last_motion = c->last_seen;
+    HidVector *acc = &c->state.six_axis_sensor_acceleration;
+    acc->x = rds16(p + 4) / 1000.0f;
+    acc->y = rds16(p + 6) / 1000.0f;
+    acc->z = -rds16(p + 8) / 1000.0f;
+    const float rev = dt * 0.1f / 360.0f;           // 0.1 °/s units over dt → revolutions
+    HidVector *angle = &c->state.six_axis_sensor_angle;
+    angle->x += rds16(p + 10) * rev;
+    angle->y += rds16(p + 12) * rev;
+    angle->z -= rds16(p + 14) * rev;
+    push_state(c);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -288,6 +348,8 @@ static void handle_message(Client *c, const u8 *msg, size_t len) {
         c->greeted = true;
     } else if (type == TYPE_STATE && size >= 12 && c->greeted) {
         apply_state(c, payload, false);
+    } else if (type == TYPE_MOTION && size >= MOTION_SIZE && c->greeted) {
+        apply_motion(c, payload);
     }
     // keyboard (16) and other extensions have no meaning on the console: ignored
 }
@@ -333,6 +395,7 @@ static void read_udp(int fd) {
         Client *c = &clients[i];
         if (c->fd >= 0 && c->greeted && c->addr.s_addr == from.sin_addr.s_addr) {
             if (packet[6] == TYPE_STATE && rd16(packet) >= RX_HEADER + 12) apply_state(c, packet + RX_HEADER, true);
+            else if (packet[6] == TYPE_MOTION && rd16(packet) >= RX_HEADER + MOTION_SIZE) apply_motion(c, packet + RX_HEADER);
             return;
         }
     }
@@ -345,8 +408,9 @@ static size_t build_status(char *out, size_t capacity) {
                        HOSVER_MAJOR(hosversionGet()), HOSVER_MINOR(hosversionGet()), HOSVER_MICRO(hosversionGet()));
     for (int i = 0; i < MAX_CLIENTS && len < (int)capacity - 80; i++)
         if (clients[i].fd >= 0)
-            len += snprintf(out + len, capacity - len, "slot %d: %s hello=%d pad=%d stati=%u\n", i,
-                            inet_ntoa(clients[i].addr), clients[i].greeted, clients[i].attached, clients[i].states);
+            len += snprintf(out + len, capacity - len, "slot %d: %s hello=%d pad=%d stati=%u movimento=%u\n", i,
+                            inet_ntoa(clients[i].addr), clients[i].greeted, clients[i].attached, clients[i].states,
+                            clients[i].motions);
     size_t tail = log_tail_len < capacity - len ? log_tail_len : capacity - len;
     memcpy(out + len, log_tail + log_tail_len - tail, tail);
     return len + tail;
@@ -508,6 +572,9 @@ int main(int argc, char **argv) {
              (unsigned long long)(used / 1024), (unsigned long long)(total / 1024),
              (unsigned long long)((pool_total - pool_used) / 1024), (unsigned long long)(pool_total / 1024));
 
+    six_axis = hosversionAtLeast(12, 0, 0);
+    log_line(six_axis ? "giroscopio virtuale disponibile" : "giroscopio virtuale non disponibile (serve HOS 12.0.0+)");
+
     Result rc = hiddbgAttachHdlsWorkBuffer(&hdls_session, hdls_work, sizeof(hdls_work));
     log_line("buffer HDLS: rc 0x%x", rc);
     if (R_FAILED(rc)) diagAbortWithResult(rc);
@@ -592,9 +659,16 @@ int main(int argc, char **argv) {
 
         // The phone repeats its state every 200 ms: silence means it is gone.
         now = now_ns();
-        for (int i = 0; i < MAX_CLIENTS; i++)
-            if (clients[i].fd >= 0 && now - clients[i].last_seen > CLIENT_TIMEOUT_NS)
-                close_client(&clients[i], "nessun dato da 10 s");
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            Client *c = &clients[i];
+            if (c->fd >= 0 && now - c->last_seen > CLIENT_TIMEOUT_NS) {
+                close_client(c, "nessun dato da 10 s");
+            } else if (c->fd >= 0 && c->last_motion && now - c->last_motion > MOTION_IDLE_NS) {
+                // Gyro switched off on the phone: back to a still controller, not frozen mid-tilt.
+                motion_rest(c);
+                push_state(c);
+            }
+        }
     }
 
     for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i], "uscita");

@@ -21,6 +21,9 @@ object Wire {
     const val TYPE_FEEDBACK = 2
     /** OpenGamepad extension: u8 modifiers, u8 count, count × u8 HID key usages. */
     const val TYPE_KEYBOARD = 16
+    /** OpenGamepad extension, over UDP: one motion sample, see [org.opengamepad.motion.MotionSample]. */
+    const val TYPE_MOTION = 17
+    // 18-23 are reserved for amiibo.
 
     /** Appended to hello and reply when both sides are OpenGamepad. */
     val EXTENSION_MAGIC = "OGP".toByteArray(Charsets.US_ASCII)

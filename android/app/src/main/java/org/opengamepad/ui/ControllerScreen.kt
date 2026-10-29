@@ -36,6 +36,9 @@ fun ControllerScreen(
     nintendoLayout: Boolean = false,
     onScreenSaver: () -> Unit,
     onDisconnect: () -> Unit,
+    steering: Boolean = false,
+    onSteering: (() -> Unit)? = null,
+    onRecenter: () -> Unit = {},
 ) {
     fun button(mask: Int): (Boolean) -> Unit = { down -> input.touch { it.with(mask, down) } }
 
@@ -68,6 +71,12 @@ fun ControllerScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 PadButton("☾", { if (it) onScreenSaver() }, Modifier.size(44.dp), fontSize = 20)
                 PadButton("✕", { if (it) onDisconnect() }, Modifier.size(44.dp), fontSize = 16)
+                // Tilt steering on/off, and re-centre while it is on.
+                if (onSteering != null) {
+                    PadButton("⎈", { if (it) onSteering() }, Modifier.size(44.dp), fontSize = 20,
+                        color = if (steering) Accent else Color.White)
+                    if (steering) PadButton("◎", { if (it) onRecenter() }, Modifier.size(44.dp), fontSize = 18, color = Accent)
+                }
             }
             Text(status, color = Color(0xFF8A91A0), fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {

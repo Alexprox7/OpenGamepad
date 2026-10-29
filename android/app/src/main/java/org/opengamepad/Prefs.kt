@@ -44,7 +44,13 @@ class Prefs(context: Context) {
         get() = prefs.getInt(KEY_ORIGINAL_CLASS, -1)
         set(value) = prefs.edit().putInt(KEY_ORIGINAL_CLASS, value).apply()
 
+    /** Motion options as JSON (MotionSettings); missing means everything off. */
+    var motionJson: String?
+        get() = prefs.getString(KEY_MOTION, null)
+        set(value) = prefs.edit().putString(KEY_MOTION, value).apply()
+
     private companion object {
+        const val KEY_MOTION = "motion"
         const val KEY_ORIGINAL_CLASS = "original_device_class"
         const val KEY_BLUETOOTH_PROFILE = "bluetooth_profile"
         const val KEY_BLUETOOTH = "bluetooth_enabled"

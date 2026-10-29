@@ -132,6 +132,7 @@ public sealed class PhoneSession : IDisposable
             _keyboard.Apply(message.Payload);
             return;
         }
+        // Everything else is ignored, including motion (TypeMotion): the virtual pads have no gyro.
         if (message.Type != Protocol.TypeState || _pad is null) return;
         if (!ControllerState.TryDecode(message.Payload, out var s)) return;
         LastInput = DateTime.Now;

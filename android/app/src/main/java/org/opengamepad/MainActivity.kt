@@ -44,6 +44,8 @@ import org.opengamepad.input.GamepadInput
 import org.opengamepad.macro.MacroConfig
 import org.opengamepad.macro.MacroEngine
 import org.opengamepad.input.PhysicalGamepad
+import org.opengamepad.motion.MotionController
+import org.opengamepad.motion.MotionSettings
 import org.opengamepad.net.ConnectTarget
 import org.opengamepad.net.ConnectionStatus
 import org.opengamepad.net.WifiConnection
@@ -72,6 +74,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var saver: ScreenSaver
     private lateinit var bluetooth: BluetoothGamepad
     private lateinit var macros: MacroEngine
+    private lateinit var motion: MotionController
 
     private var showPad by mutableStateOf(false)
     private var showMacros by mutableStateOf(false)
@@ -164,6 +167,13 @@ class MainActivity : ComponentActivity() {
             save = false,
         )
 
+        motion = MotionController(this, input, MotionSettings.parse(prefs.motionJson), { prefs.motionJson = it.toJson() }, switchAddress())
+        // Gyro passthrough: type 17 to the Switch sysmodule, IMU fields of the Bluetooth Pro Controller.
+        motion.onSample = { sample ->
+            sample?.let(connection::sendMotion)
+            bluetooth.sendMotion(sample)
+        }
+
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
 
@@ -176,6 +186,7 @@ class MainActivity : ComponentActivity() {
             macros.output.collect { state ->
                 connection.send(state)
                 bluetooth.send(state)
+                motion.onPadState(state)
             }
         }
         lifecycleScope.launch {
@@ -243,6 +254,7 @@ class MainActivity : ComponentActivity() {
                 }
             } ?: describe(status)
             val radial by macros.radial.collectAsState()
+            val motionSettings by motion.settings.collectAsState()
             if (showMacros && showJson) {
                 MacroEditorScreen(
                     initial = macroConfig.toJson(),
@@ -281,6 +293,9 @@ class MainActivity : ComponentActivity() {
                         input.resetTouch()
                         showPad = false
                     },
+                    steering = motionSettings.steering && motion.hasTilt,
+                    onSteering = if (motion.hasTilt) ({ motion.update { it.copy(steering = !it.steering) } }) else null,
+                    onRecenter = motion::recenter,
                 )
             } else {
                 ConnectScreen(
@@ -311,6 +326,7 @@ class MainActivity : ComponentActivity() {
                         shizuku.requestPermission { refreshShizuku() }
                     },
                     bluetooth = bluetoothPanel(btState),
+                    motion = { org.opengamepad.ui.MotionCard(motion) },
                 )
             }
         }
@@ -320,12 +336,14 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         refreshShizuku()
         hideSystemBars()
+        motion.resume()
     }
 
     override fun onPause() {
         // Safety: never leave the screen dark when the app is not in front.
         saver.exit()
         input.resetTouch()
+        motion.pause()
         super.onPause()
     }
 
@@ -348,6 +366,7 @@ class MainActivity : ComponentActivity() {
         // With Bluetooth mode on, the registration stays alive in the foreground service.
         if (!prefs.bluetoothEnabled) bluetooth.stop()
         shizuku.release()
+        motion.release()
         super.onDestroy()
     }
 

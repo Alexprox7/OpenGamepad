@@ -19,6 +19,9 @@ Then in the app tap *Cerca* and pick *Nintendo Switch*, or type `<Switch IP>:478
 - UDP 47801: answers `OGP-DISCOVER` with `OGP-HERE 47800 Nintendo Switch`.
 - Buttons by position (Xbox A, the bottom button, is Switch B), Guide → Home, analog triggers past
   half press ZL/ZR. Keyboard messages from macros are ignored.
+- Motion (HOS 12.0.0+): with *Giroscopio reale per Switch* on in the app, the phone's accelerometer and
+  gyroscope drive the controller's six-axis sensor (games with motion controls, e.g. Mario Kart 8
+  Deluxe's tilt steering). Off in the app, the controller rests flat and still.
 - A phone silent for 10 s is disconnected and its controller removed. After sleep mode the sockets
   are reopened.
 - Sleep and shutdown: registered with PSC (module id 0x4750, after fs, hid and sockets). Before the

@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.opengamepad.motion.MotionSample
 import org.opengamepad.protocol.Buttons
 import org.opengamepad.protocol.ControllerState
 import java.util.concurrent.Executors
@@ -44,6 +45,7 @@ class SwitchProProfile(private val address: ByteArray) : HidProfile {
 
     @Volatile private var link: HidLink? = null
     @Volatile private var state = ControllerState.NEUTRAL
+    @Volatile private var motion: MotionSample? = null
     private var timer = 0
     private var scheduler: ScheduledExecutorService? = null
     private val spi = SwitchSpi()
@@ -66,6 +68,10 @@ class SwitchProProfile(private val address: ByteArray) : HidProfile {
 
     override fun onState(state: ControllerState) {
         this.state = state
+    }
+
+    override fun onMotion(sample: MotionSample?) {
+        motion = sample
     }
 
     override fun onGetReport(reportId: Int): ByteArray = fullReport()
@@ -115,7 +121,8 @@ class SwitchProProfile(private val address: ByteArray) : HidProfile {
         send(0x30, fullReport())
     }
 
-    private fun fullReport() = baseReport() // bytes 12.. are IMU samples, left at zero
+    /** Without gyro passthrough the IMU samples stay at zero, as before. */
+    private fun fullReport() = baseReport().also { report -> motion?.let { packImu(report, it) } }
 
     private fun send(reportId: Int, data: ByteArray) {
         try {
@@ -201,6 +208,37 @@ class SwitchProProfile(private val address: ByteArray) : HidProfile {
             val rawX = (STICK_CENTER + x / 32768f * STICK_RANGE).roundToInt().coerceIn(0, 4095)
             val rawY = (STICK_CENTER + y / 32768f * STICK_RANGE).roundToInt().coerceIn(0, 4095)
             pack12(target, offset, rawX, rawY)
+        }
+
+        // Factory IMU calibration served from SPI 0x6020: accel origin/sensitivity, gyro origin/sensitivity.
+        private val ACCEL_ORIGIN = intArrayOf(-45, -43, 341)
+        private const val ACCEL_SENSITIVITY = 0x4000
+        private val GYRO_ORIGIN = intArrayOf(25, -35, -36)
+        private const val GYRO_SENSITIVITY = 0x343B
+
+        /**
+         * Report 0x30 bytes 12-47: three IMU samples (accel x/y/z, gyro x/y/z, i16 each), filled
+         * with the latest reading. Pro Controller sensor axes (dekuNukem's IMU notes): x towards
+         * the top edge, y towards the left, z out of the face, accel +1 g up at rest.
+         * Raw values invert the console's calibration: g = (raw - origin) * 4 / (sensitivity -
+         * origin), °/s = (raw - origin) * 936 / (sensitivity - origin).
+         */
+        internal fun packImu(report: ByteArray, m: MotionSample) {
+            val accel = floatArrayOf(m.accelY, -m.accelX, m.accelZ)
+            val gyro = floatArrayOf(m.gyroY, -m.gyroX, m.gyroZ)
+            val raw = IntArray(6)
+            for (i in 0..2) {
+                raw[i] = (ACCEL_ORIGIN[i] + accel[i] * (ACCEL_SENSITIVITY - ACCEL_ORIGIN[i]) / 4f).roundToInt()
+                raw[3 + i] = (GYRO_ORIGIN[i] + gyro[i] * (GYRO_SENSITIVITY - GYRO_ORIGIN[i]) / 936f).roundToInt()
+            }
+            for (sample in 0 until 3) {
+                for (i in 0 until 6) {
+                    val value = raw[i].coerceIn(-32768, 32767)
+                    val at = 12 + sample * 12 + i * 2
+                    report[at] = (value and 0xFF).toByte()
+                    report[at + 1] = (value shr 8).toByte()
+                }
+            }
         }
 
         internal fun pack12(target: ByteArray, offset: Int, x: Int, y: Int) {
