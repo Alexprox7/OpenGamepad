@@ -73,6 +73,7 @@ fun ConnectScreen(
     onShizukuPermission: () -> Unit,
     bluetooth: BluetoothPanel,
     motion: (@Composable () -> Unit)? = null,
+    amiibo: (@Composable () -> Unit)? = null,
 ) {
     var target by remember { mutableStateOf(initialTarget) }
     Column(
@@ -191,6 +192,7 @@ fun ConnectScreen(
         }
 
         motion?.invoke()
+        amiibo?.invoke()
     }
 }
 

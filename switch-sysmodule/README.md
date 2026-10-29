@@ -31,6 +31,14 @@ Then in the app tap *Cerca* and pick *Nintendo Switch*, or type `<Switch IP>:478
 - Memory: about 440 KiB in total (256 KiB heap, small socket buffers). The System pool shared by all
   sysmodules has only a few MiB free, and overrunning it crashes the console.
 
+## Amiibo
+
+With emuiibo installed, the phone can list the virtual amiibo in `sdmc:/emuiibo/amiibo` (sub-folders
+included) and make one active, or send the id and UID of a dump stored on the phone: the module creates
+`emuiibo/amiibo/OpenGamepad/[group/]name/` once and activates it. It talks to emuiibo's `emuiibo` IPC
+service (commands 3, 5 and 8) and checks first that the service exists, so a console without emuiibo
+only gets an error message in the app. No amiibo files are included or distributed.
+
 ## Diagnostics
 
 Events (sockets, connections, controller creation and the `hiddbg` result codes) are written to

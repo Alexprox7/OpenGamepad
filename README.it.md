@@ -103,6 +103,23 @@ I giochi vedono un controller Xbox 360 cablato (stessa identità del driver `xpa
 3. Compare un Pro Controller nero e blu; si possono collegare fino a quattro telefoni. I pulsanti
    seguono la disposizione Nintendo, per posizione (quello in basso è B).
 
+#### Amiibo
+
+Con [emuiibo](https://github.com/XorTroll/emuiibo) installato sulla Switch, l'app può appoggiare un
+amiibo su un lettore NFC virtuale: tocca **NFC** sul controller (oppure assegna la ruota **⚡ amiibo**
+a una combinazione nell'editor delle macro) e sceglilo.
+
+- *Telefono*: i dump `.bin` importati nella scheda *Amiibo per Switch* dell'app (singoli file, oppure
+  una cartella le cui sottocartelle diventano gruppi). Al primo uso il sysmodule crea per ognuno un
+  amiibo virtuale in `emuiibo/amiibo/OpenGamepad/` (vengono inviati solo id e UID; i salvataggi restano
+  sulla console).
+- *Switch*: gli amiibo virtuali già presenti in `sdmc:/emuiibo/amiibo`, con le loro cartelle.
+- *Rimuovi* toglie l'amiibo dal lettore.
+
+> **Nessun file amiibo è incluso o distribuito.** OpenGamepad legge solo i dump che crei tu dalle
+> statuette che possiedi (o gli amiibo virtuali già configurati in emuiibo). Non chiedere, condividere
+> né pubblicare dump amiibo nelle issue o nelle discussioni del progetto.
+
 Sospensione, memoria e log sono descritti in [switch-sysmodule/README.md](switch-sysmodule/README.md).
 Funziona solo sulle console con firmware modificato: su una Switch originale serve la via Bluetooth,
 che richiede un telefono capace di cambiare la classe Bluetooth (quasi nessuno ci riesce senza root).
@@ -185,6 +202,8 @@ tools/            Script di supporto
 - La tecnica di spegnimento del pannello segue [scrcpy](https://github.com/Genymobile/scrcpy) (Apache‑2.0).
 - [ZXing Android Embedded](https://github.com/journeyapps/zxing-android-embedded) (Apache‑2.0) – lettore QR.
 - [QRCoder](https://github.com/codebude/QRCoder) (MIT) – codice QR del companion.
+- [emuiibo](https://github.com/XorTroll/emuiibo) (usato tramite il suo servizio IPC, non incluso) –
+  emulazione amiibo sulla Switch.
 - [libnx](https://github.com/switchbrew/libnx) (ISC) – sysmodule Switch; il controller virtuale HDLS
   segue l'approccio di [sys-botbase](https://github.com/olliz0r/sys-botbase) e
   [MissionControl](https://github.com/ndeadly/MissionControl).

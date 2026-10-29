@@ -57,6 +57,11 @@ class WifiConnection(private val deviceId: Long) {
     private val _feedback = MutableSharedFlow<Feedback>(extraBufferCapacity = 8)
     val feedback: SharedFlow<Feedback> = _feedback
 
+    /** Other host messages (amiibo list and status from the Switch sysmodule). */
+    private val _hostMessages = MutableSharedFlow<Message>(extraBufferCapacity = 32)
+    val hostMessages: SharedFlow<Message> = _hostMessages
+    @Volatile private var tcpWriter: ((ByteArray) -> Unit)? = null
+
     private var tcp: Socket? = null
     @Volatile private var udp: DatagramSocket? = null
     private var session: Job? = null
@@ -117,6 +122,7 @@ class WifiConnection(private val deviceId: Long) {
 
         this.companion = companion
         fun writeTcp(packet: ByteArray) = synchronized(writeLock) { output.write(packet); output.flush() }
+        tcpWriter = if (companion) ::writeTcp else null
 
         scope.launch { receiveTcp(input) }
         if (companion) scope.launch {
@@ -180,8 +186,12 @@ class WifiConnection(private val deviceId: Long) {
     }
 
     private fun handleIncoming(message: Message) {
-        Feedback.from(message)?.let { _feedback.tryEmit(it) }
-            ?: Log.d(TAG, "ignored $message")
+        val feedback = Feedback.from(message)
+        when {
+            feedback != null -> _feedback.tryEmit(feedback)
+            message.type >= Wire.TYPE_AMIIBO_LIST_REQUEST -> _hostMessages.tryEmit(message)
+            else -> Log.d(TAG, "ignored $message")
+        }
     }
 
     private fun readMessage(input: DataInputStream): Message {
@@ -216,6 +226,22 @@ class WifiConnection(private val deviceId: Long) {
         }
     }
 
+    /**
+     * An OpenGamepad request on the control channel (amiibo); dropped when the host is not an
+     * OpenGamepad host or the link is down. Safe to call from the main thread.
+     */
+    fun sendControl(type: Int, payload: ByteArray) {
+        val writer = tcpWriter ?: return
+        if (_status.value !is ConnectionStatus.Connected) return
+        scope.launch {
+            try {
+                writer(Wire.frame(type, sequence.getAndIncrement(), payload))
+            } catch (_: IOException) {
+                // the state loop reports broken links
+            }
+        }
+    }
+
     /** PC keys from macros; only our companion understands them. */
     fun sendKeys(state: KeyboardState) {
         if (companion && _status.value is ConnectionStatus.Connected) keyboard.trySend(state)
@@ -235,6 +261,7 @@ class WifiConnection(private val deviceId: Long) {
     }
 
     private fun closeSockets() {
+        tcpWriter = null
         runCatching { tcp?.close() }
         runCatching { udp?.close() }
         tcp = null

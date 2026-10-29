@@ -41,6 +41,8 @@ fun ControllerScreen(
     steering: Boolean = false,
     onSteering: (() -> Unit)? = null,
     onRecenter: () -> Unit = {},
+    /** Opens the amiibo wheel; null hides the button (not connected to a Switch). */
+    onAmiibo: (() -> Unit)? = null,
 ) {
     fun button(mask: Int): (Boolean) -> Unit = { down -> input.touch { it.with(mask, down) } }
 
@@ -79,6 +81,7 @@ fun ControllerScreen(
                         color = if (steering) Accent else Color.White)
                     if (steering) PadButton("◎", { if (it) onRecenter() }, Modifier.size(44.dp), fontSize = 18, color = Accent)
                 }
+                if (onAmiibo != null) PadButton("NFC", { if (it) onAmiibo() }, Modifier.size(44.dp), fontSize = 12)
             }
             Text(status, color = Color(0xFF8A91A0), fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {

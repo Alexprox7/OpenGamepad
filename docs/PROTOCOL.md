@@ -135,8 +135,27 @@ rotated to the current screen orientation. Acceleration is proper acceleration a
 rule): +x tilts the top edge towards the player, +y moves the right edge away, +z turns the phone like a
 steering wheel to the left.
 
-The Windows and Linux companions ignore it (Xbox 360 and uinput pads have no gyro). Types 18–23 are
-reserved.
+The Windows and Linux companions ignore it (Xbox 360 and uinput pads have no gyro).
+
+### 18–22 – Amiibo (OpenGamepad extension, Switch sysmodule)
+
+Over TCP, only with the `"OGP"` marker. The sysmodule drives
+[emuiibo](https://github.com/XorTroll/emuiibo) through its IPC service; the companions ignore these types.
+
+| Type | Direction | Payload |
+|---|---|---|
+| 18 list request | phone → console | u16 offset |
+| 19 list | console → phone | u16 total, u16 offset, u8 flags (bit 0: emuiibo running), u8 count, count × (u8 length, UTF‑8 path relative to `sdmc:/emuiibo/amiibo`) |
+| 20 activate | phone → console | u8 source, then: source 0 = UTF‑8 path from the list; source 1 = u8 id[8], u8 uid[7], u8 name length, name, u8 group length, group |
+| 21 status | console → phone | u8 result (0 active, 1 removed, 2 emuiibo missing, 3 error, 4 not found), u32 result code, UTF‑8 text |
+| 22 clear | phone → console | — |
+
+The list is paged: the phone asks again with the next offset until it has `total` entries (offset 0
+rescans the SD card). For source 1, `id` is the 8 bytes at 0x54 of the dump and `uid` the tag UID
+(bytes 0–2 and 4–7); names are at most 63 bytes. The sysmodule creates
+`emuiibo/amiibo/OpenGamepad/[group/]name/` with `amiibo.json` and `amiibo.flag` the first time
+(`game_character_id` = id[0] | id[1] << 8, `model_number` = id[4] << 8 | id[5], as emuiibo's own
+conversion), then sets it active, turns emulation on and connects it. Type 23 is reserved.
 
 ## LAN discovery
 

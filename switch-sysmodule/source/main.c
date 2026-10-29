@@ -16,6 +16,7 @@
 // abort (omm fatal 2165-0001).
 
 #include <switch.h>
+#include "amiibo.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -131,7 +132,7 @@ static size_t log_tail_len;
 
 static u64 now_ns(void) { return armTicksToNs(armGetSystemTick()); }
 
-static void log_line(const char *format, ...) {
+void log_line(const char *format, ...) {
     char line[192];
     u64 ms = now_ns() / 1000000ULL;
     int n = snprintf(line, sizeof(line), "%llu.%03llu ", (unsigned long long)(ms / 1000), (unsigned long long)(ms % 1000));
@@ -350,6 +351,8 @@ static void handle_message(Client *c, const u8 *msg, size_t len) {
         apply_state(c, payload, false);
     } else if (type == TYPE_MOTION && size >= MOTION_SIZE && c->greeted) {
         apply_motion(c, payload);
+    } else if (type >= TYPE_AMIIBO_LIST_REQUEST && type <= TYPE_AMIIBO_CLEAR && c->greeted) {
+        amiibo_handle(c->fd, type, payload, size);
     }
     // keyboard (16) and other extensions have no meaning on the console: ignored
 }

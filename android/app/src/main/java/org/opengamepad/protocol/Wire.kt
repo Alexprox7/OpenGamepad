@@ -23,7 +23,13 @@ object Wire {
     const val TYPE_KEYBOARD = 16
     /** OpenGamepad extension, over UDP: one motion sample, see [org.opengamepad.motion.MotionSample]. */
     const val TYPE_MOTION = 17
-    // 18-23 are reserved for amiibo.
+    /** Amiibo through emuiibo on the Switch sysmodule (TCP): see [org.opengamepad.amiibo.AmiiboProtocol]. */
+    const val TYPE_AMIIBO_LIST_REQUEST = 18
+    const val TYPE_AMIIBO_LIST = 19
+    const val TYPE_AMIIBO_ACTIVATE = 20
+    const val TYPE_AMIIBO_STATUS = 21
+    const val TYPE_AMIIBO_CLEAR = 22
+    // 23 is reserved.
 
     /** Appended to hello and reply when both sides are OpenGamepad. */
     val EXTENSION_MAGIC = "OGP".toByteArray(Charsets.US_ASCII)

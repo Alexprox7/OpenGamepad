@@ -106,6 +106,22 @@ Games see a wired Xbox 360 controller (same identity as the kernel `xpad` driver
 3. A black and blue Pro Controller appears; up to four phones can connect. The buttons follow the
    Nintendo layout, by position (the bottom button is B).
 
+#### Amiibo
+
+With [emuiibo](https://github.com/XorTroll/emuiibo) also installed on the Switch, the app can put an
+amiibo on a virtual NFC reader: tap **NFC** on the controller screen (or map the **⚡ amiibo** wheel
+to any combo in the macro editor) and pick one.
+
+- *Telefono*: `.bin` dumps imported in the app's *Amiibo per Switch* card (single files, or a folder
+  whose sub-folders become groups). The first time one is used, the sysmodule creates a virtual amiibo
+  for it in `emuiibo/amiibo/OpenGamepad/` (only its id and UID are sent; saves stay on the console).
+- *Switch*: the virtual amiibo already in `sdmc:/emuiibo/amiibo`, with their folders.
+- *Rimuovi* takes the amiibo off the reader.
+
+> **No amiibo files are included or distributed.** OpenGamepad only reads dumps you make yourself
+> from figures you own (or virtual amiibo you already set up in emuiibo). Do not ask for, share or
+> publish amiibo dumps in this project's issues or discussions.
+
 See [switch-sysmodule/README.md](switch-sysmodule/README.md) for sleep handling, memory use and logs.
 It only runs on consoles with custom firmware: on a stock Switch use the Bluetooth route below,
 which needs a phone that can change its Bluetooth device class (most cannot without root).
@@ -187,6 +203,8 @@ tools/            Helper scripts
 - The panel-off technique follows [scrcpy](https://github.com/Genymobile/scrcpy) (Apache‑2.0).
 - [ZXing Android Embedded](https://github.com/journeyapps/zxing-android-embedded) (Apache‑2.0) – QR scanner.
 - [QRCoder](https://github.com/codebude/QRCoder) (MIT) – QR code in the companion.
+- [emuiibo](https://github.com/XorTroll/emuiibo) (used through its IPC service, not bundled) –
+  amiibo emulation on the Switch.
 - [libnx](https://github.com/switchbrew/libnx) (ISC) – Switch sysmodule; the HDLS virtual controller
   approach is the one used by [sys-botbase](https://github.com/olliz0r/sys-botbase) and
   [MissionControl](https://github.com/ndeadly/MissionControl).

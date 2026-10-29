@@ -36,6 +36,9 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.opengamepad.amiibo.AmiiboController
+import org.opengamepad.amiibo.AmiiboLibrary
+import org.opengamepad.amiibo.AmiiboMenu
 import org.opengamepad.bt.BluetoothGamepad
 import org.opengamepad.bt.BluetoothKeepAliveService
 import org.opengamepad.bt.GenericGamepadProfile
@@ -75,6 +78,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var bluetooth: BluetoothGamepad
     private lateinit var macros: MacroEngine
     private lateinit var motion: MotionController
+    private lateinit var amiiboLibrary: AmiiboLibrary
+    private lateinit var amiibo: AmiiboController
 
     private var showPad by mutableStateOf(false)
     private var showMacros by mutableStateOf(false)
@@ -88,6 +93,20 @@ class MainActivity : ComponentActivity() {
     private var switchPlayer by mutableStateOf(0)
     private var bluetoothProfileId by mutableStateOf(GenericGamepadProfile.ID)
     private var switchJobs: List<Job> = emptyList()
+
+    private val amiiboFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) lifecycleScope.launch { reportImport(amiiboLibrary.importFiles(contentResolver, uris)) }
+    }
+    private val amiiboFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree != null) lifecycleScope.launch { reportImport(amiiboLibrary.importTree(contentResolver, tree)) }
+    }
+
+    private fun reportImport(result: AmiiboLibrary.ImportResult) {
+        toast(
+            "Amiibo importati: ${result.added}" +
+                if (result.skipped > 0) " · ${result.skipped} file ignorati (non sono dump amiibo)" else "",
+        )
+    }
 
     private val scanner = registerForActivityResult(ScanContract()) { result ->
         result.contents?.let(::connectTo)
@@ -174,6 +193,14 @@ class MainActivity : ComponentActivity() {
             bluetooth.sendMotion(sample)
         }
 
+        // Amiibo wheel for the Switch sysmodule: a dynamic radial menu, mappable to any combo.
+        amiiboLibrary = AmiiboLibrary(filesDir)
+        amiibo = AmiiboController(amiiboLibrary, connection::sendControl)
+        macros.registerDynamicRadial(AmiiboMenu.ID, amiibo::menu, amiibo::onPick)
+        lifecycleScope.launch { amiiboLibrary.load() }
+        lifecycleScope.launch { connection.hostMessages.collect(amiibo::onHostMessage) }
+        lifecycleScope.launch { amiibo.messages.collect(::toast) }
+
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
 
@@ -206,6 +233,8 @@ class MainActivity : ComponentActivity() {
             connection.status.collect { status ->
                 if (status is ConnectionStatus.Connected) wifiLock.acquire() else if (wifiLock.isHeld) wifiLock.release()
                 if (status is ConnectionStatus.Connected) showPad = true
+                amiibo.available = status is ConnectionStatus.Connected &&
+                    status.pcOs.startsWith("Switch") && "OpenGamepad" in status.pcOs
                 if (status is ConnectionStatus.Failed) toast("Connessione persa: ${status.reason}")
             }
         }
@@ -299,6 +328,9 @@ class MainActivity : ComponentActivity() {
                     steering = motionSettings.steering && motion.hasTilt,
                     onSteering = if (motion.hasTilt) ({ motion.update { it.copy(steering = !it.steering) } }) else null,
                     onRecenter = motion::recenter,
+                    onAmiibo = if ((status as? ConnectionStatus.Connected)?.pcOs?.startsWith("Switch") == true) {
+                        { macros.openRadial(AmiiboMenu.ID) }
+                    } else null,
                 )
             } else {
                 ConnectScreen(
@@ -330,6 +362,14 @@ class MainActivity : ComponentActivity() {
                     },
                     bluetooth = bluetoothPanel(btState),
                     motion = { org.opengamepad.ui.MotionCard(motion) },
+                    amiibo = {
+                        org.opengamepad.ui.AmiiboCard(
+                            amiiboLibrary,
+                            onImportFiles = { amiiboFiles.launch(arrayOf("application/octet-stream", "*/*")) },
+                            onImportFolder = { amiiboFolder.launch(null) },
+                            onDelete = { entry -> lifecycleScope.launch { amiiboLibrary.delete(entry) } },
+                        )
+                    },
                 )
             }
         }

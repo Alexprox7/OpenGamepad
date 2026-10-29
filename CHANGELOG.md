@@ -24,6 +24,11 @@
   button, real gyro to the Switch sysmodule and the Bluetooth Pro Controller, and a DSU (cemuhook) server
   on UDP 26760 for Cemu, Ryujinx, Dolphin, Citra and other emulators. A ⎈ button on the controller
   screen toggles steering.
+- **Radial menus**: each wheel opens either while the combo is held or stays open until a pick
+  (A, a tap or the combo again confirms, B goes back); slices can be folders with sub-wheels, like reWASD.
+- **Amiibo for the Switch** (needs emuiibo): an NFC button and a mappable *⚡ amiibo* wheel list the dumps
+  imported in the app and the virtual amiibo on the console; the pick goes on emuiibo's virtual reader.
+  No amiibo files are included.
 
 ### Companion
 - Code split into a shared core and per-OS backends (`pc-companion/Core`, `Windows`, `Linux`).
