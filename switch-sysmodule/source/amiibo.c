@@ -2,7 +2,8 @@
 //
 // emuiibo IPC ("emuiibo", all buffers HipcMapAlias), from its overlay client:
 //   3 SetEmulationStatus(u32: 0 on, 1 off)
-//   5 SetActiveVirtualAmiibo(in buffer: folder path)
+//   5 SetActiveVirtualAmiibo(in buffer: folder path, exactly strlen bytes: emuiibo reads the
+//     whole buffer as the path, NULs included; success also marks the amiibo connected)
 //   6 ResetActiveVirtualAmiibo()
 //   8 SetActiveVirtualAmiiboStatus(u32: 1 connected, 2 disconnected)
 // A virtual amiibo is a folder under sdmc:/emuiibo/amiibo (sub-folders allowed) holding
@@ -62,12 +63,9 @@ static Result emu_set_emulation(bool on) {
 }
 
 static Result emu_set_active(const char *folder) {
-    static char path[FS_MAX_PATH];
-    memset(path, 0, sizeof(path));
-    snprintf(path, sizeof(path), "%s", folder);
     return serviceDispatch(&emu, 5,
         .buffer_attrs = { SfBufferAttr_HipcMapAlias | SfBufferAttr_In },
-        .buffers = { { path, sizeof(path) } });
+        .buffers = { { folder, strlen(folder) } });
 }
 
 static Result emu_set_connected(bool connected) {
@@ -263,9 +261,9 @@ static void activate(int fd, const char *folder, const char *label) {
         send_status(fd, RESULT_NO_EMUIIBO, rc, "emuiibo");
         return;
     }
-    rc = emu_checked(emu_set_active(folder));
-    if (R_SUCCEEDED(rc)) rc = emu_checked(emu_set_emulation(true));
-    if (R_SUCCEEDED(rc)) rc = emu_checked(emu_set_connected(true));
+    // Emulation on first, like the overlay's toggle; a successful SetActive leaves it connected.
+    rc = emu_checked(emu_set_emulation(true));
+    if (R_SUCCEEDED(rc)) rc = emu_checked(emu_set_active(folder));
     log_line("amiibo: %s → rc 0x%x", label, rc);
     send_status(fd, R_SUCCEEDED(rc) ? RESULT_ACTIVE : RESULT_ERROR, rc, label);
 }
