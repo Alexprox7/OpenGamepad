@@ -39,8 +39,8 @@ object Discovery {
             val udp = async { searchUdp(timeoutMs) }
             val tcp = async { probeTcp() }
             val named = udp.await().associateBy { it.host }
-            // Hosts that only answered on TCP keep their address as name.
-            (named.values + tcp.await().filter { it !in named }.map { FoundHost(it, it, TCP_PORT) })
+            // Hosts that only answered on TCP have no name: the list shows them with their address.
+            (named.values + tcp.await().filter { it !in named }.map { FoundHost("OpenGamepad", it, TCP_PORT) })
                 .sortedBy { it.host }
         }
     }

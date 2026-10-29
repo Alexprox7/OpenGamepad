@@ -6,9 +6,10 @@ Up to four phones at once. It needs custom firmware (Atmosphère): stock console
 
 ## Install
 
-Copy `atmosphere/contents/0100000000004750/` (from the release zip or `dist/`) to the SD card and
-restart. `flags/boot2.flag` starts it at boot; delete it, or use
-[ovl-sysmodules](https://github.com/WerWolv/ovl-sysmodules), to keep it off.
+Copy `atmosphere/contents/0100000000004750/` (from the release zip or `dist/`) to the SD card, then
+start *OpenGamepad* from [ovl-sysmodules](https://github.com/WerWolv/ovl-sysmodules) (Tesla menu).
+The package does not start at boot: once it works on your console, ovl-sysmodules can turn that on
+(it creates `flags/boot2.flag`). If the console ever misbehaves, a normal restart stops it.
 
 Then in the app tap *Cerca* and pick *Nintendo Switch*, or type `<Switch IP>:47800`.
 
@@ -20,7 +21,22 @@ Then in the app tap *Cerca* and pick *Nintendo Switch*, or type `<Switch IP>:478
   half press ZL/ZR. Keyboard messages from macros are ignored.
 - A phone silent for 10 s is disconnected and its controller removed. After sleep mode the sockets
   are reopened.
-- Memory: 3 MiB heap, 3 BSD sessions.
+- Sleep and shutdown: registered with PSC (module id 0x4750, after fs, hid and sockets). Before the
+  console sleeps it disconnects the phones, removes the controllers, closes its sockets and stops
+  writing the log; phones reconnect after wake-up. Without this, spsm times out and the console
+  crashes (omm fatal 2165-0001).
+- Memory: about 440 KiB in total (256 KiB heap, small socket buffers). The System pool shared by all
+  sysmodules has only a few MiB free, and overrunning it crashes the console.
+
+## Diagnostics
+
+Events (sockets, connections, controller creation and the `hiddbg` result codes) are written to
+`sdmc:/config/OpenGamepad/log.txt`. The same lines can be read over Wi‑Fi: send `OGP-STATUS` to
+UDP 47801 of the console, for example
+
+```sh
+python3 -c "import socket;s=socket.socket(2,2);s.settimeout(2);s.sendto(b'OGP-STATUS',('192.168.1.x',47801));print(s.recv(2048).decode())"
+```
 
 ## Build
 

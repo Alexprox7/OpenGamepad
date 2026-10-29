@@ -109,7 +109,7 @@ fun ConnectScreen(
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         found.forEach { host ->
                             Button(onClick = { onFound(host) }) {
-                                Text((if (host.name.contains("Switch", true)) "🎮 " else "💻 ") + host.name)
+                                Text((if (host.name.contains("Switch", true)) "🎮 " else "💻 ") + "${host.name} · ${host.host}")
                             }
                         }
                     }

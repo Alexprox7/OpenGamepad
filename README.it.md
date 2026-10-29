@@ -95,14 +95,15 @@ I giochi vedono un controller Xbox 360 cablato (stessa identità del driver `xpa
 
 ### Nintendo Switch (Atmosphère)
 
-1. Copia la cartella `atmosphere` di `OpenGamepad-Switch-<versione>.zip` nella radice della scheda SD
-   e riavvia la console.
+1. Copia la cartella `atmosphere` di `OpenGamepad-Switch-<versione>.zip` nella radice della scheda SD,
+   poi avvia *OpenGamepad* da ovl-sysmodules nel menu Tesla (non parte all'avvio finché non lo
+   abiliti lì).
 2. Collega la Switch alla stessa rete Wi‑Fi del telefono. Nell'app tocca *Cerca* e scegli
    *Nintendo Switch* (oppure scrivi `<IP della Switch>:47800`; l'IP è in *Impostazioni di sistema → Internet*).
 3. Compare un Pro Controller nero e blu; si possono collegare fino a quattro telefoni. I pulsanti
    seguono la disposizione Nintendo, per posizione (quello in basso è B).
 
-Il sysmodule si può attivare e disattivare con [ovl-sysmodules](https://github.com/WerWolv/ovl-sysmodules).
+Sospensione, memoria e log sono descritti in [switch-sysmodule/README.md](switch-sysmodule/README.md).
 Funziona solo sulle console con firmware modificato: su una Switch originale serve la via Bluetooth,
 che richiede un telefono capace di cambiare la classe Bluetooth (quasi nessuno ci riesce senza root).
 

@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
@@ -192,6 +193,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { connection.feedback.collect(::onFeedback) }
         lifecycleScope.launch {
             connection.status.collect { status ->
+                if (status is ConnectionStatus.Connected) wifiLock.acquire() else if (wifiLock.isHeld) wifiLock.release()
                 if (status is ConnectionStatus.Connected) showPad = true
                 if (status is ConnectionStatus.Failed) toast("Connessione persa: ${status.reason}")
             }
@@ -327,7 +329,20 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
+    /**
+     * Keeps Wi-Fi out of power saving while connected: otherwise a state can wait for the next
+     * beacon (tens to hundreds of ms) and input feels laggy or stuck.
+     */
+    private val wifiLock by lazy {
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+        else @Suppress("DEPRECATION") WifiManager.WIFI_MODE_FULL_HIGH_PERF
+        applicationContext.getSystemService(WifiManager::class.java)
+            .createWifiLock(mode, "OpenGamepad:link")
+            .apply { setReferenceCounted(false) }
+    }
+
     override fun onDestroy() {
+        if (wifiLock.isHeld) wifiLock.release()
         unregisterReceiver(pairingReceiver)
         connection.release()
         // With Bluetooth mode on, the registration stays alive in the foreground service.

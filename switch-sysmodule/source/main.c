@@ -3,6 +3,14 @@
 //
 // Protocol (see docs/PROTOCOL.md): the phone opens TCP to port 47800 and sends a hello;
 // the reply announces the UDP port for controller states. States can also arrive on TCP.
+//
+// Diagnostics: events go to sdmc:/config/OpenGamepad/log.txt, and "OGP-STATUS" sent to
+// UDP 47801 returns the latest lines, so the log can be read over Wi-Fi.
+//
+// Sleep and shutdown: the module registers with PSC and, before the console sleeps, closes
+// every connection and controller and stops all IPC (sockets, hid, SD log) until it wakes.
+// A sysmodule that keeps calling services while they suspend makes spsm time out and
+// abort (omm fatal 2165-0001).
 
 #include <switch.h>
 #include <arpa/inet.h>
@@ -11,10 +19,12 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define PORT            47800
@@ -25,15 +35,26 @@
 #define TYPE_HELLO      0
 #define TYPE_STATE      1
 #define OS_SWITCH       4
-#define CLIENT_TIMEOUT_NS (10ULL * 1000000000ULL)
+#define SECOND_NS       1000000000ULL
+#define CLIENT_TIMEOUT_NS (10 * SECOND_NS)
+#define REOPEN_DELAY_NS   (2 * SECOND_NS)
+#define LOG_DIR         "sdmc:/config/OpenGamepad"
+#define LOG_PATH        LOG_DIR "/log.txt"
+// PSC has no registry of module ids: this one is arbitrary ("GP"). Others in use: sys-con 126,
+// MissionControl 0xBD, sys-autopilot 0x4150.
+#define PSC_MODULE_ID   0x4750
 
 // ---------------------------------------------------------------------------------------
-// libnx process setup: small static heap, no applet, only the services we need.
+// libnx process setup: static heap, no applet, only the services we need.
+//
+// Memory: sysmodules share the small System pool with Nintendo's services; taking too much
+// makes a later system service fail to start and the console reboots. Keep everything small:
+// heap for the socket buffers and stdio only, tiny socket buffers (states are 19-byte packets).
 
 u32 __nx_applet_type = AppletType_None;
 u32 __nx_fs_num_sessions = 1;
 
-#define INNER_HEAP_SIZE 0x300000
+#define INNER_HEAP_SIZE 0x40000
 size_t nx_inner_heap_size = INNER_HEAP_SIZE;
 char nx_inner_heap[INNER_HEAP_SIZE];
 
@@ -45,16 +66,22 @@ void __libnx_initheap(void) {
 }
 
 static const SocketInitConfig socket_config = {
-    .tcp_tx_buf_size = 0x1000,
-    .tcp_rx_buf_size = 0x1000,
+    .tcp_tx_buf_size = 0x800,
+    .tcp_rx_buf_size = 0x800,
     .tcp_tx_buf_max_size = 0,
     .tcp_rx_buf_max_size = 0,
-    .udp_tx_buf_size = 0x2400,
-    .udp_rx_buf_size = 0xA500,
+    .udp_tx_buf_size = 0x800,
+    .udp_rx_buf_size = 0x2000,
+    // Buffer pool = sb_efficiency × the sizes above: 4 leaves room for the listener, four phones
+    // and both UDP sockets (with 2 the discovery socket could not be created).
     .sb_efficiency = 4,
     .num_bsd_sessions = 3,
     .bsd_service_type = BsdServiceType_Auto,
 };
+
+static bool sd_mounted;
+static PscPmModule psc_module;
+static bool psc_registered;
 
 void __appInit(void) {
     Result rc = smInitialize();
@@ -65,16 +92,69 @@ void __appInit(void) {
             hosversionSet(MAKEHOSVERSION(fw.major, fw.minor, fw.micro));
         setsysExit();
     }
+    // The log is optional: keep going without the SD card.
+    if (R_SUCCEEDED(fsInitialize())) sd_mounted = R_SUCCEEDED(fsdevMountSdmc());
     rc = hiddbgInitialize();
     if (R_FAILED(rc)) diagAbortWithResult(rc);
     rc = socketInitialize(&socket_config);
     if (R_FAILED(rc)) diagAbortWithResult(rc);
+    // Depending on fs, hid and sockets means we are told to sleep before them and to wake after.
+    if (R_SUCCEEDED(pscmInitialize())) {
+        const u32 dependencies[] = { PscPmModuleId_Fs, PscPmModuleId_Hid, PscPmModuleId_WlanSockets };
+        psc_registered = R_SUCCEEDED(pscmGetPmModule(&psc_module, (PscPmModuleId)PSC_MODULE_ID, dependencies, 3, true));
+    }
     smExit();
 }
 
 void __appExit(void) {
+    if (psc_registered) pscPmModuleFinalize(&psc_module);
+    pscmExit();
     socketExit();
     hiddbgExit();
+    if (sd_mounted) fsdevUnmountAll();
+    fsExit();
+}
+
+// ---------------------------------------------------------------------------------------
+// Log: file on the SD card plus the latest lines in memory for OGP-STATUS.
+
+static FILE *log_file;
+static bool log_to_sd = true; // off while the console sleeps: fs is suspended
+static char log_tail[1200];
+static size_t log_tail_len;
+
+static u64 now_ns(void) { return armTicksToNs(armGetSystemTick()); }
+
+static void log_line(const char *format, ...) {
+    char line[192];
+    u64 ms = now_ns() / 1000000ULL;
+    int n = snprintf(line, sizeof(line), "%llu.%03llu ", (unsigned long long)(ms / 1000), (unsigned long long)(ms % 1000));
+    va_list args;
+    va_start(args, format);
+    n += vsnprintf(line + n, sizeof(line) - n, format, args);
+    va_end(args);
+    if (n > (int)sizeof(line) - 2) n = sizeof(line) - 2;
+    line[n++] = '\n';
+    line[n] = 0;
+
+    if (log_tail_len + n > sizeof(log_tail)) {
+        size_t drop = log_tail_len + n - sizeof(log_tail);
+        memmove(log_tail, log_tail + drop, log_tail_len - drop);
+        log_tail_len -= drop;
+    }
+    memcpy(log_tail + log_tail_len, line, n);
+    log_tail_len += n;
+    if (log_file && log_to_sd) {
+        fputs(line, log_file);
+        fflush(log_file);
+    }
+}
+
+static void log_open(void) {
+    if (!sd_mounted) return;
+    mkdir("sdmc:/config", 0777);
+    mkdir(LOG_DIR, 0777);
+    log_file = fopen(LOG_PATH, "w");
 }
 
 // ---------------------------------------------------------------------------------------
@@ -93,6 +173,8 @@ typedef struct {
     HiddbgHdlsHandle pad;
     HiddbgHdlsState state;
     u64 last_seen;
+    u32 states;                 // controller states received
+    Result last_rc;             // last hiddbgSetHdlsState result, logged when it changes
 } Client;
 
 static Client clients[MAX_CLIENTS];
@@ -105,23 +187,24 @@ static bool attach_pad(Client *c) {
     info.singleColorButtons = RGBA8_MAXALPHA(0x7C, 0x9C, 0xFF);
     info.colorLeftGrip = RGBA8_MAXALPHA(0x1A, 0x1A, 0x1A);
     info.colorRightGrip = RGBA8_MAXALPHA(0x1A, 0x1A, 0x1A);
-    if (R_FAILED(hiddbgAttachHdlsVirtualDevice(&c->pad, &info))) return false;
+    Result rc = hiddbgAttachHdlsVirtualDevice(&c->pad, &info);
+    if (R_FAILED(rc)) {
+        log_line("controller virtuale NON creato per %s: rc 0x%x", inet_ntoa(c->addr), rc);
+        return false;
+    }
     memset(&c->state, 0, sizeof(c->state));
     c->state.battery_level = 4;
     c->attached = true;
-    hiddbgSetHdlsState(c->pad, &c->state);
+    c->last_rc = hiddbgSetHdlsState(c->pad, &c->state);
+    log_line("controller virtuale creato per %s (stato rc 0x%x)", inet_ntoa(c->addr), c->last_rc);
     return true;
 }
 
-static void detach_pad(Client *c) {
-    if (!c->attached) return;
-    hiddbgDetachHdlsVirtualDevice(c->pad);
-    c->attached = false;
-}
-
-static void close_client(Client *c) {
-    detach_pad(c);
-    if (c->fd >= 0) close(c->fd);
+static void close_client(Client *c, const char *reason) {
+    if (c->fd < 0) return;
+    log_line("%s chiuso (%s), %u stati ricevuti", inet_ntoa(c->addr), reason, c->states);
+    if (c->attached) hiddbgDetachHdlsVirtualDevice(c->pad);
+    close(c->fd);
     memset(c, 0, sizeof(*c));
     c->fd = -1;
 }
@@ -130,7 +213,7 @@ static inline u16 rd16(const u8 *p) { return (u16)(p[0] | (p[1] << 8)); }
 static inline s16 rds16(const u8 *p) { return (s16)rd16(p); }
 
 /** XUSB state (Xbox layout) → Pro Controller, by position: Xbox A (bottom) = Switch B. */
-static void apply_state(Client *c, const u8 *p) {
+static void apply_state(Client *c, const u8 *p, bool udp) {
     u16 xb = rd16(p);
     u64 b = 0;
     if (xb & 0x0001) b |= HidNpadButton_Up;
@@ -156,8 +239,14 @@ static void apply_state(Client *c, const u8 *p) {
     c->state.analog_stick_l.y = rds16(p + 4);
     c->state.analog_stick_r.x = rds16(p + 6);
     c->state.analog_stick_r.y = rds16(p + 8);
-    c->last_seen = armTicksToNs(armGetSystemTick());
-    if (c->attached) hiddbgSetHdlsState(c->pad, &c->state);
+    c->last_seen = now_ns();
+    if (c->states++ == 0) log_line("primo stato da %s via %s", inet_ntoa(c->addr), udp ? "UDP" : "TCP");
+    if (!c->attached) return;
+    Result rc = hiddbgSetHdlsState(c->pad, &c->state);
+    if (rc != c->last_rc) {
+        log_line("aggiornamento controller di %s: rc 0x%x", inet_ntoa(c->addr), rc);
+        c->last_rc = rc;
+    }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -187,15 +276,24 @@ static void handle_message(Client *c, const u8 *msg, size_t len) {
     const u8 *payload = msg + RX_HEADER;
     size_t size = len - RX_HEADER;
     if (type == TYPE_HELLO && size >= 8) {
+        // A phone has one connection: an older one from the same address is stale
+        // (app restarted, Wi-Fi changed) and would otherwise keep receiving its UDP states.
+        for (int i = 0; i < MAX_CLIENTS; i++)
+            if (&clients[i] != c && clients[i].fd >= 0 && clients[i].addr.s_addr == c->addr.s_addr)
+                close_client(&clients[i], "sostituito da una nuova connessione");
         bool extension = size >= 11 && memcmp(payload + 8, "OGP", 3) == 0;
+        log_line("hello da %s", inet_ntoa(c->addr));
         if (!c->attached) attach_pad(c);
         send_hello_reply(c, extension);
         c->greeted = true;
     } else if (type == TYPE_STATE && size >= 12 && c->greeted) {
-        apply_state(c, payload);
+        apply_state(c, payload, false);
     }
     // keyboard (16) and other extensions have no meaning on the console: ignored
 }
+
+static size_t build_status(char *out, size_t capacity);
+static char status_buffer[256 + sizeof(log_tail)];
 
 /** Reads TCP data and handles every complete frame. Returns false when the peer closed. */
 static bool read_tcp(Client *c) {
@@ -203,7 +301,13 @@ static bool read_tcp(Client *c) {
     if (n == 0) return false;
     if (n < 0) return errno == EAGAIN || errno == EWOULDBLOCK;
     c->len += (size_t)n;
-    c->last_seen = armTicksToNs(armGetSystemTick());
+    c->last_seen = now_ns();
+    // Diagnostics over TCP too ("OGP-STATUS" instead of a frame), in case UDP 47801 is down.
+    if (!c->greeted && c->len >= 10 && memcmp(c->buf, "OGP-STATUS", 10) == 0) {
+        size_t len = build_status(status_buffer, sizeof(status_buffer));
+        send(c->fd, status_buffer, len, 0);
+        return false;
+    }
     for (;;) {
         if (c->len < 2) break;
         u16 frame = rd16(c->buf);
@@ -216,6 +320,8 @@ static bool read_tcp(Client *c) {
     return true;
 }
 
+static u32 udp_unknown;
+
 static void read_udp(int fd) {
     u8 packet[128];
     struct sockaddr_in from;
@@ -226,13 +332,27 @@ static void read_udp(int fd) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         Client *c = &clients[i];
         if (c->fd >= 0 && c->greeted && c->addr.s_addr == from.sin_addr.s_addr) {
-            if (packet[6] == TYPE_STATE && rd16(packet) >= RX_HEADER + 12) apply_state(c, packet + RX_HEADER);
+            if (packet[6] == TYPE_STATE && rd16(packet) >= RX_HEADER + 12) apply_state(c, packet + RX_HEADER, true);
             return;
         }
     }
+    if (udp_unknown++ == 0) log_line("stati UDP da %s ignorati: nessun hello da quell'indirizzo", inet_ntoa(from.sin_addr));
 }
 
-/** LAN discovery: answers "OGP-DISCOVER" broadcasts with the TCP port and a name. */
+/** Summary line, connected phones and the latest log lines. */
+static size_t build_status(char *out, size_t capacity) {
+    int len = snprintf(out, capacity, "OpenGamepad sysmodule, HOS %u.%u.%u\n",
+                       HOSVER_MAJOR(hosversionGet()), HOSVER_MINOR(hosversionGet()), HOSVER_MICRO(hosversionGet()));
+    for (int i = 0; i < MAX_CLIENTS && len < (int)capacity - 80; i++)
+        if (clients[i].fd >= 0)
+            len += snprintf(out + len, capacity - len, "slot %d: %s hello=%d pad=%d stati=%u\n", i,
+                            inet_ntoa(clients[i].addr), clients[i].greeted, clients[i].attached, clients[i].states);
+    size_t tail = log_tail_len < capacity - len ? log_tail_len : capacity - len;
+    memcpy(out + len, log_tail + log_tail_len - tail, tail);
+    return len + tail;
+}
+
+/** LAN discovery ("OGP-DISCOVER") and diagnostics ("OGP-STATUS") on UDP 47801. */
 static void read_discovery(int fd) {
     char packet[64];
     struct sockaddr_in from;
@@ -240,15 +360,33 @@ static void read_discovery(int fd) {
     ssize_t n = recvfrom(fd, packet, sizeof(packet) - 1, 0, (struct sockaddr *)&from, &from_len);
     if (n <= 0) return;
     packet[n] = 0;
-    if (strncmp(packet, "OGP-DISCOVER", 12) != 0) return;
-    char reply[64];
-    int len = snprintf(reply, sizeof(reply), "OGP-HERE %d Nintendo Switch", PORT);
-    sendto(fd, reply, len, 0, (struct sockaddr *)&from, from_len);
+    if (strncmp(packet, "OGP-DISCOVER", 12) == 0) {
+        char reply[64];
+        int len = snprintf(reply, sizeof(reply), "OGP-HERE %d Nintendo Switch", PORT);
+        sendto(fd, reply, len, 0, (struct sockaddr *)&from, from_len);
+    } else if (strncmp(packet, "OGP-STATUS", 10) == 0) {
+        size_t len = build_status(status_buffer, sizeof(status_buffer));
+        sendto(fd, status_buffer, len, 0, (struct sockaddr *)&from, from_len);
+    }
+}
+
+/** Logs a socket failure only when it differs from the previous one for the same socket. */
+static void log_socket_error(int *last, const char *step, const char *kind, int port) {
+    int code = errno * 4 + (step[0] == 's' ? 1 : step[0] == 'b' ? 2 : 3);
+    if (code == *last) return;
+    *last = code;
+    log_line("%s %s %d: errno %d (riprovo ogni 2 s)", step, kind, port, errno);
 }
 
 static int open_socket(int type, int port) {
+    static int last_error[3];
+    int *last = &last_error[type == SOCK_STREAM ? 0 : port == PORT ? 1 : 2];
+    const char *kind = type == SOCK_STREAM ? "TCP" : "UDP";
     int fd = socket(AF_INET, type, 0);
-    if (fd < 0) return -1;
+    if (fd < 0) {
+        log_socket_error(last, "socket", kind, port);
+        return -1;
+    }
     int one = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
     struct sockaddr_in addr = {0};
@@ -256,22 +394,31 @@ static int open_socket(int type, int port) {
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        log_socket_error(last, "bind", kind, port);
         close(fd);
         return -1;
     }
     if (type == SOCK_STREAM && listen(fd, MAX_CLIENTS) < 0) {
+        log_socket_error(last, "listen", kind, port);
         close(fd);
         return -1;
     }
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+    *last = 0;
+    log_line("%s %d aperto", kind, port);
     return fd;
 }
 
-static void accept_client(int listener) {
+/** Returns false when the listener itself is broken and must be reopened. */
+static bool accept_client(int listener) {
     struct sockaddr_in from;
     socklen_t from_len = sizeof(from);
     int fd = accept(listener, (struct sockaddr *)&from, &from_len);
-    if (fd < 0) return;
+    if (fd < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR) return true;
+        log_line("accept: errno %d", errno);
+        return errno != EBADF && errno != EINVAL && errno != ENOTSOCK;
+    }
     for (int i = 0; i < MAX_CLIENTS; i++) {
         Client *c = &clients[i];
         if (c->fd >= 0) continue;
@@ -280,84 +427,177 @@ static void accept_client(int listener) {
         fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
         c->fd = fd;
         c->addr = from.sin_addr;
-        c->last_seen = armTicksToNs(armGetSystemTick());
-        return;
+        c->last_seen = now_ns();
+        return true;
     }
-    close(fd); // all four controller slots are in use
+    log_line("connessione da %s rifiutata: 4 controller già collegati", inet_ntoa(from.sin_addr));
+    close(fd);
+    return true;
+}
+
+/** True when a descriptor is still usable: poll() with a bad one fails as a whole. */
+static bool socket_ok(int fd) {
+    struct pollfd one = { .fd = fd, .events = POLLIN };
+    return poll(&one, 1, 0) >= 0 && !(one.revents & POLLNVAL);
+}
+
+static void close_socket(int *fd, const char *name) {
+    if (*fd < 0) return;
+    log_line("socket %s chiuso, verrà riaperto", name);
+    close(*fd);
+    *fd = -1;
+}
+
+enum { TAG_LISTENER = -1, TAG_UDP = -2, TAG_DISCOVERY = -3 };
+
+static int listener = -1, udp = -1, discovery = -1;
+static u64 next_open;
+static bool suspended;
+
+/**
+ * Answers a PSC request. Before sleep or shutdown everything that talks to other services is
+ * closed, then the request is acknowledged; nothing touches sockets, hid or the SD card until
+ * the console is awake again (libnx calls that state ReadyAwaken; it is MinimumAwake).
+ */
+static void handle_power_request(void) {
+    PscPmState state;
+    u32 flags;
+    if (R_FAILED(pscPmModuleGetRequest(&psc_module, &state, &flags))) return;
+    switch (state) {
+    case PscPmState_ReadySleep:
+    case PscPmState_ReadyShutdown:
+        if (!suspended) {
+            log_line(state == PscPmState_ReadySleep ? "sospensione: chiudo connessioni e controller" : "spegnimento");
+            for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i], "console in sospensione");
+            if (listener >= 0) close(listener);
+            if (udp >= 0) close(udp);
+            if (discovery >= 0) close(discovery);
+            listener = udp = discovery = -1;
+            log_to_sd = false;
+            suspended = true;
+        }
+        break;
+    case PscPmState_ReadyAwaken:
+        if (suspended) {
+            suspended = false;
+            log_to_sd = true;
+            log_line("risveglio");
+            next_open = 0; // sockets are reopened (and retried) by the main loop
+        }
+        break;
+    default:
+        break;
+    }
+    pscPmModuleAcknowledge(&psc_module, state);
 }
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
     for (int i = 0; i < MAX_CLIENTS; i++) clients[i].fd = -1;
+    log_open();
+    log_line("avvio, HOS %u.%u.%u%s", HOSVER_MAJOR(hosversionGet()), HOSVER_MINOR(hosversionGet()),
+             HOSVER_MICRO(hosversionGet()), hosversionIsAtmosphere() ? " (Atmosphere)" : "");
+
+    u64 total = 0, used = 0, pool_total = 0, pool_used = 0;
+    svcGetInfo(&total, InfoType_TotalMemorySize, CUR_PROCESS_HANDLE, 0);
+    svcGetInfo(&used, InfoType_UsedMemorySize, CUR_PROCESS_HANDLE, 0);
+    svcGetSystemInfo(&pool_total, 0, INVALID_HANDLE, 2); // System pool
+    svcGetSystemInfo(&pool_used, 1, INVALID_HANDLE, 2);
+    log_line("memoria: processo %llu/%llu KiB, pool di sistema libero %llu KiB su %llu",
+             (unsigned long long)(used / 1024), (unsigned long long)(total / 1024),
+             (unsigned long long)((pool_total - pool_used) / 1024), (unsigned long long)(pool_total / 1024));
 
     Result rc = hiddbgAttachHdlsWorkBuffer(&hdls_session, hdls_work, sizeof(hdls_work));
+    log_line("buffer HDLS: rc 0x%x", rc);
     if (R_FAILED(rc)) diagAbortWithResult(rc);
+    log_line(psc_registered ? "registrato per sospensione/spegnimento" : "ATTENZIONE: registrazione PSC fallita");
 
-    int listener = -1, udp = -1, discovery = -1;
     for (;;) {
-        // The network may not be ready right after boot: keep trying to open the sockets.
-        if (listener < 0) listener = open_socket(SOCK_STREAM, PORT);
-        if (udp < 0) udp = open_socket(SOCK_DGRAM, PORT);
-        if (discovery < 0) discovery = open_socket(SOCK_DGRAM, DISCOVERY_PORT);
-        if (listener < 0 || udp < 0) {
-            svcSleepThread(2000000000ULL);
-            continue;
+        if (psc_registered) {
+            // While suspended nothing else may run: just wait for the next power request.
+            if (suspended) {
+                if (R_SUCCEEDED(eventWait(&psc_module.event, UINT64_MAX))) handle_power_request();
+                continue;
+            }
+            if (R_SUCCEEDED(eventWait(&psc_module.event, 0))) {
+                handle_power_request();
+                if (suspended) continue;
+            }
         }
 
-        // Only valid descriptors go to poll(): libnx rejects the whole call for a -1 entry.
+        // The network may not be ready after boot or after sleep: missing sockets are
+        // reopened every 2 s, while the ones already open keep being served.
+        u64 now = now_ns();
+        if ((listener < 0 || udp < 0 || discovery < 0) && now >= next_open) {
+            if (listener < 0) listener = open_socket(SOCK_STREAM, PORT);
+            if (udp < 0) udp = open_socket(SOCK_DGRAM, PORT);
+            if (discovery < 0) discovery = open_socket(SOCK_DGRAM, DISCOVERY_PORT);
+            next_open = now + REOPEN_DELAY_NS;
+        }
+
+        // Only valid descriptors go to poll(): a -1 entry makes the whole call fail.
         struct pollfd fds[3 + MAX_CLIENTS];
-        int slot[MAX_CLIENTS];
+        int tags[3 + MAX_CLIENTS];
         int n = 0;
-        fds[n++] = (struct pollfd){ .fd = listener, .events = POLLIN };
-        fds[n++] = (struct pollfd){ .fd = udp, .events = POLLIN };
-        int discovery_slot = -1;
-        if (discovery >= 0) {
-            discovery_slot = n;
-            fds[n++] = (struct pollfd){ .fd = discovery, .events = POLLIN };
-        }
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            slot[i] = -1;
-            if (clients[i].fd < 0) continue;
-            slot[i] = n;
-            fds[n++] = (struct pollfd){ .fd = clients[i].fd, .events = POLLIN };
-        }
+        if (listener >= 0) { tags[n] = TAG_LISTENER; fds[n++] = (struct pollfd){ .fd = listener, .events = POLLIN }; }
+        if (udp >= 0) { tags[n] = TAG_UDP; fds[n++] = (struct pollfd){ .fd = udp, .events = POLLIN }; }
+        if (discovery >= 0) { tags[n] = TAG_DISCOVERY; fds[n++] = (struct pollfd){ .fd = discovery, .events = POLLIN }; }
+        for (int i = 0; i < MAX_CLIENTS; i++)
+            if (clients[i].fd >= 0) { tags[n] = i; fds[n++] = (struct pollfd){ .fd = clients[i].fd, .events = POLLIN }; }
 
-        if (poll(fds, n, 1000) < 0) {
-            // Typically after sleep mode or a Wi-Fi change: start over with fresh sockets.
-            for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i]);
-            close(listener);
-            close(udp);
-            if (discovery >= 0) close(discovery);
-            listener = udp = discovery = -1;
-            svcSleepThread(1000000000ULL);
+        if (n == 0) {
+            svcSleepThread(SECOND_NS / 10);
             continue;
         }
-        if (fds[0].revents & (POLLERR | POLLNVAL)) {
-            close(listener);
-            listener = -1;
-        } else if (fds[0].revents & POLLIN) {
-            accept_client(listener);
+        if (poll(fds, n, 100) < 0) {
+            // One descriptor went bad (typically after sleep mode): drop just that one.
+            log_line("poll: errno %d", errno);
+            if (listener >= 0 && !socket_ok(listener)) close_socket(&listener, "TCP");
+            if (udp >= 0 && !socket_ok(udp)) close_socket(&udp, "UDP");
+            if (discovery >= 0 && !socket_ok(discovery)) close_socket(&discovery, "ricerca");
+            for (int i = 0; i < MAX_CLIENTS; i++)
+                if (clients[i].fd >= 0 && !socket_ok(clients[i].fd)) close_client(&clients[i], "socket non valido");
+            svcSleepThread(SECOND_NS / 10);
+            continue;
         }
-        if (fds[1].revents & POLLIN) read_udp(udp);
-        if (discovery_slot >= 0 && (fds[discovery_slot].revents & POLLIN)) read_discovery(discovery);
 
-        u64 now = armTicksToNs(armGetSystemTick());
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            Client *c = &clients[i];
-            if (c->fd < 0) continue;
-            // A client accepted during this round has no poll entry yet.
-            short ev = slot[i] >= 0 ? fds[slot[i]].revents : 0;
-            bool alive = true;
-            if (ev & (POLLERR | POLLHUP | POLLNVAL)) alive = false;
-            else if (ev & POLLIN) alive = read_tcp(c);
-            // The phone repeats its state every 200 ms: silence means it is gone.
-            if (now - c->last_seen > CLIENT_TIMEOUT_NS) alive = false;
-            if (!alive) close_client(c);
+        for (int k = 0; k < n; k++) {
+            short ev = fds[k].revents;
+            if (!ev) continue;
+            switch (tags[k]) {
+            case TAG_LISTENER:
+                if ((ev & POLLNVAL) || ((ev & POLLIN) && !accept_client(listener))) close_socket(&listener, "TCP");
+                break;
+            case TAG_UDP:
+                if (ev & POLLNVAL) close_socket(&udp, "UDP");
+                else if (ev & POLLIN) read_udp(udp);
+                break;
+            case TAG_DISCOVERY:
+                if (ev & POLLNVAL) close_socket(&discovery, "ricerca");
+                else if (ev & POLLIN) read_discovery(discovery);
+                break;
+            default: {
+                Client *c = &clients[tags[k]];
+                if (c->fd != fds[k].fd) break; // closed earlier in this round
+                if (ev & POLLIN) {
+                    if (!read_tcp(c)) close_client(c, "connessione chiusa dal telefono");
+                } else if (ev & (POLLERR | POLLHUP | POLLNVAL)) {
+                    close_client(c, "errore di connessione");
+                }
+                break;
+            }
+            }
         }
+
+        // The phone repeats its state every 200 ms: silence means it is gone.
+        now = now_ns();
+        for (int i = 0; i < MAX_CLIENTS; i++)
+            if (clients[i].fd >= 0 && now - clients[i].last_seen > CLIENT_TIMEOUT_NS)
+                close_client(&clients[i], "nessun dato da 10 s");
     }
 
-    for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i]);
+    for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i], "uscita");
     hiddbgReleaseHdlsWorkBuffer(hdls_session);
     return 0;
 }

@@ -98,14 +98,15 @@ Games see a wired Xbox 360 controller (same identity as the kernel `xpad` driver
 
 ### Nintendo Switch (Atmosphère)
 
-1. Copy the `atmosphere` folder from `OpenGamepad-Switch-<version>.zip` to the root of the SD card
-   and restart the console.
+1. Copy the `atmosphere` folder from `OpenGamepad-Switch-<version>.zip` to the root of the SD card,
+   then start *OpenGamepad* from ovl-sysmodules in the Tesla menu (it does not start at boot until
+   you enable that there).
 2. Connect the Switch to the same Wi‑Fi as the phone. In the app tap *Cerca* and pick
    *Nintendo Switch* (or type `<Switch IP>:47800`; the IP is in *System Settings → Internet*).
 3. A black and blue Pro Controller appears; up to four phones can connect. The buttons follow the
    Nintendo layout, by position (the bottom button is B).
 
-The sysmodule can be turned on and off from [ovl-sysmodules](https://github.com/WerWolv/ovl-sysmodules).
+See [switch-sysmodule/README.md](switch-sysmodule/README.md) for sleep handling, memory use and logs.
 It only runs on consoles with custom firmware: on a stock Switch use the Bluetooth route below,
 which needs a phone that can change its Bluetooth device class (most cannot without root).
 

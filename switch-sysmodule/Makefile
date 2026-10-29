@@ -45,13 +45,13 @@ $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
-# Folder layout to copy to the root of the SD card
+# Folder layout to copy to the root of the SD card. No boot2.flag: the module is started from
+# ovl-sysmodules, which can also turn on start at boot once it works on that console.
 TITLE_ID := 0100000000004750
 dist: all
 	@rm -rf dist
-	@mkdir -p dist/atmosphere/contents/$(TITLE_ID)/flags
+	@mkdir -p dist/atmosphere/contents/$(TITLE_ID)
 	@cp $(TARGET).nsp dist/atmosphere/contents/$(TITLE_ID)/exefs.nsp
-	@touch dist/atmosphere/contents/$(TITLE_ID)/flags/boot2.flag
 	@cp toolbox.json dist/atmosphere/contents/$(TITLE_ID)/toolbox.json
 	@echo "SD card layout ready in dist/"
 
