@@ -199,6 +199,46 @@ static void motion_rest(Client *c) {
     c->last_motion = 0;
 }
 
+/**
+ * HID gives a virtual controller a motion sensor only when the six-axis attributes are already
+ * in its state when it is created, and only ApplyHdlsStateList can create one that way: a
+ * device made with AttachHdlsVirtualDevice keeps the values but games read zeros (checked with
+ * tools/motion-test on HOS 21.1.0). The current list is dumped, our device appended with an
+ * unknown handle (HID then creates it) and applied; the new handle is the one not seen before.
+ */
+static HiddbgHdlsStateList hdls_list;
+
+static Result attach_with_motion(Client *c, const HiddbgHdlsDeviceInfo *info) {
+    Result rc = hiddbgDumpHdlsStates(hdls_session, &hdls_list);
+    if (R_FAILED(rc)) return rc;
+    int count = hdls_list.total_entries;
+    if (count < 0 || count >= 0x10) return MAKERESULT(Module_Libnx, LibnxError_OutOfMemory);
+    u64 before[0x10];
+    for (int i = 0; i < count; i++) before[i] = hdls_list.entries[i].handle.handle;
+
+    HiddbgHdlsStateListEntry *e = &hdls_list.entries[count];
+    memset(e, 0, sizeof(*e));
+    e->handle.handle = 0x4F47500000000100ULL | (u64)(c - clients); // not an existing device
+    e->device = *info;
+    e->state = c->state;
+    hdls_list.total_entries = count + 1;
+    rc = hiddbgApplyHdlsStateList(hdls_session, &hdls_list);
+    if (R_FAILED(rc)) return rc;
+
+    rc = hiddbgDumpHdlsStates(hdls_session, &hdls_list);
+    if (R_FAILED(rc)) return rc;
+    for (int i = 0; i < hdls_list.total_entries && i < 0x10; i++) {
+        u64 handle = hdls_list.entries[i].handle.handle;
+        bool known = false;
+        for (int k = 0; k < count; k++) known |= handle == before[k];
+        if (!known) {
+            c->pad.handle = handle;
+            return 0;
+        }
+    }
+    return MAKERESULT(Module_Libnx, LibnxError_NotFound);
+}
+
 static bool attach_pad(Client *c) {
     HiddbgHdlsDeviceInfo info = {0};
     info.deviceType = HidDeviceType_FullKey3;               // Pro Controller
@@ -207,17 +247,21 @@ static bool attach_pad(Client *c) {
     info.singleColorButtons = RGBA8_MAXALPHA(0x7C, 0x9C, 0xFF);
     info.colorLeftGrip = RGBA8_MAXALPHA(0x1A, 0x1A, 0x1A);
     info.colorRightGrip = RGBA8_MAXALPHA(0x1A, 0x1A, 0x1A);
-    Result rc = hiddbgAttachHdlsVirtualDevice(&c->pad, &info);
-    if (R_FAILED(rc)) {
-        log_line("controller virtuale NON creato per %s: rc 0x%x", inet_ntoa(c->addr), rc);
-        return false;
-    }
     memset(&c->state, 0, sizeof(c->state));
     c->state.battery_level = 4;
+    Result rc = 1;
     if (six_axis) {
         c->state.attribute = HiddbgHdlsAttribute_HasVirtualSixAxisSensorAcceleration |
                              HiddbgHdlsAttribute_HasVirtualSixAxisSensorAngle;
         motion_rest(c);
+        rc = attach_with_motion(c, &info);
+        if (R_FAILED(rc)) log_line("controller con sensore non creato (rc 0x%x): senza movimento", rc);
+    }
+    // Fallback: a plain virtual controller, buttons and sticks only.
+    if (R_FAILED(rc)) rc = hiddbgAttachHdlsVirtualDevice(&c->pad, &info);
+    if (R_FAILED(rc)) {
+        log_line("controller virtuale NON creato per %s: rc 0x%x", inet_ntoa(c->addr), rc);
+        return false;
     }
     c->attached = true;
     c->last_rc = hiddbgSetHdlsState(c->pad, &c->state);
