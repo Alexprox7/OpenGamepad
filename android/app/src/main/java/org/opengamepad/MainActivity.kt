@@ -328,6 +328,8 @@ class MainActivity : ComponentActivity() {
                     steering = motionSettings.steering && motion.hasTilt,
                     onSteering = if (motion.hasTilt) ({ motion.update { it.copy(steering = !it.steering) } }) else null,
                     onRecenter = motion::recenter,
+                    motionSensor = motionSettings.gyro,
+                    onMotionSensor = if (motion.hasGyro) ({ motion.update { it.copy(gyro = !it.gyro) } }) else null,
                     onAmiibo = if ((status as? ConnectionStatus.Connected)?.pcOs?.startsWith("Switch") == true) {
                         { macros.openRadial(AmiiboMenu.ID) }
                     } else null,

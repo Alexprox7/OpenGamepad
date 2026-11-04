@@ -41,6 +41,9 @@ fun ControllerScreen(
     steering: Boolean = false,
     onSteering: (() -> Unit)? = null,
     onRecenter: () -> Unit = {},
+    /** Joy-Con-style motion sensor on/off; null hides the button (no gyroscope). */
+    motionSensor: Boolean = false,
+    onMotionSensor: (() -> Unit)? = null,
     /** Opens the amiibo wheel; null hides the button (not connected to a Switch). */
     onAmiibo: (() -> Unit)? = null,
 ) {
@@ -80,6 +83,10 @@ fun ControllerScreen(
                     PadButton("⎈", { if (it) onSteering() }, Modifier.size(44.dp), fontSize = 20,
                         color = if (steering) Accent else Color.White)
                     if (steering) PadButton("◎", { if (it) onRecenter() }, Modifier.size(44.dp), fontSize = 18, color = Accent)
+                }
+                if (onMotionSensor != null) {
+                    PadButton("⟲", { if (it) onMotionSensor() }, Modifier.size(44.dp), fontSize = 20,
+                        color = if (motionSensor) Accent else Color.White)
                 }
                 if (onAmiibo != null) PadButton("NFC", { if (it) onAmiibo() }, Modifier.size(44.dp), fontSize = 12)
             }

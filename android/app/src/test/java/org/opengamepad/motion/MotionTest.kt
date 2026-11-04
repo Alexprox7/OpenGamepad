@@ -275,11 +275,11 @@ class MotionTest {
     }
 
     @Test
-    fun gyroModeDefaultsToShakeAndRoundTrips() {
-        assertEquals(GyroMode.SHAKE, MotionSettings().gyroMode)
-        // Settings saved before the option existed: shake-only, default strength.
+    fun gyroModeDefaultsToFullAndRoundTrips() {
+        assertEquals(GyroMode.FULL, MotionSettings().gyroMode)
+        // Settings saved before the option existed: full motion, default shake strength.
         val old = MotionSettings.parse("""{"gyro":true}""")
-        assertEquals(GyroMode.SHAKE, old.gyroMode)
+        assertEquals(GyroMode.FULL, old.gyroMode)
         assertEquals(2.5f, old.shakeGain)
         val full = MotionSettings(gyro = true, gyroMode = GyroMode.FULL, shakeGain = 4f)
         assertEquals(full, MotionSettings.parse(full.toJson()))

@@ -34,7 +34,7 @@ data class MotionSettings(
     val shakeSensitivity: Float = 0.5f,
     /** Real gyro to the Switch sysmodule (type 17) and the Bluetooth Pro Controller. */
     val gyro: Boolean = false,
-    val gyroMode: GyroMode = GyroMode.SHAKE,
+    val gyroMode: GyroMode = GyroMode.FULL,
     /** [GyroMode.SHAKE]: factor applied to the phone's linear acceleration. */
     val shakeGain: Float = 2.5f,
     /** DSU (cemuhook) server for PC emulators on UDP [DSU_PORT]. */
