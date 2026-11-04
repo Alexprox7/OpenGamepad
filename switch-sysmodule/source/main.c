@@ -439,6 +439,8 @@ static void read_discovery(int fd) {
         probe_stop();
     } else if (strncmp(packet, "OGP-PROBE-DUMP", 14) == 0) {
         probe_experiment();
+    } else if (strncmp(packet, "OGP-PROBE-LIST", 14) == 0) {
+        probe_create_via_list();
     } else if (strncmp(packet, "OGP-PROBE", 9) == 0) {
         probe_start();
     }

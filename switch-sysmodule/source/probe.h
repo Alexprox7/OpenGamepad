@@ -10,6 +10,9 @@ void probe_stop(void);
  *  with ApplyHdlsStateList and dumps again, logging what HID keeps. */
 void probe_experiment(void);
 
+/** Creates a controller through ApplyHdlsStateList with the six-axis attributes set from the start. */
+void probe_create_via_list(void);
+
 /** Defined in main.c. */
 extern HiddbgHdlsSessionId hdls_session;
 
