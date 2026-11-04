@@ -6,5 +6,12 @@
 void probe_start(void);
 void probe_stop(void);
 
+/** Dumps every HDLS state (virtual and real controllers), rewrites the probes' six-axis values
+ *  with ApplyHdlsStateList and dumps again, logging what HID keeps. */
+void probe_experiment(void);
+
+/** Defined in main.c. */
+extern HiddbgHdlsSessionId hdls_session;
+
 /** Defined in main.c. */
 void log_line(const char *format, ...);

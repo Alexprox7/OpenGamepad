@@ -128,7 +128,7 @@ void __appExit(void) {
 
 static FILE *log_file;
 static bool log_to_sd = true; // off while the console sleeps: fs is suspended
-static char log_tail[1200];
+static char log_tail[4096];
 static size_t log_tail_len;
 
 static u64 now_ns(void) { return armTicksToNs(armGetSystemTick()); }
@@ -169,7 +169,7 @@ static void log_open(void) {
 // Virtual controllers
 
 static u8 hdls_work[0x1000] __attribute__((aligned(0x1000)));
-static HiddbgHdlsSessionId hdls_session;
+HiddbgHdlsSessionId hdls_session; // also used by probe.c
 
 typedef struct {
     int fd;                     // TCP control socket, -1 when free
@@ -437,6 +437,8 @@ static void read_discovery(int fd) {
         sendto(fd, status_buffer, len, 0, (struct sockaddr *)&from, from_len);
     } else if (strncmp(packet, "OGP-PROBE-END", 13) == 0) {
         probe_stop();
+    } else if (strncmp(packet, "OGP-PROBE-DUMP", 14) == 0) {
+        probe_experiment();
     } else if (strncmp(packet, "OGP-PROBE", 9) == 0) {
         probe_start();
     }

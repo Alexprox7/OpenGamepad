@@ -70,3 +70,42 @@ void probe_stop(void) {
     }
     if (any) log_line("prove di movimento rimosse");
 }
+
+static HiddbgHdlsStateList dump_list;
+
+static void log_list(const char *when) {
+    log_line("%s: %d controller", when, dump_list.total_entries);
+    for (int i = 0; i < dump_list.total_entries && i < 0x10; i++) {
+        const HiddbgHdlsStateListEntry *e = &dump_list.entries[i];
+        const HiddbgHdlsState *st = &e->state;
+        log_line(" %d tipo %u if %u attr %u acc %.2f %.2f %.2f ang %.2f %.2f %.2f", i, e->device.deviceType,
+                 e->device.npadInterfaceType, st->attribute,
+                 (double)st->six_axis_sensor_acceleration.x, (double)st->six_axis_sensor_acceleration.y,
+                 (double)st->six_axis_sensor_acceleration.z, (double)st->six_axis_sensor_angle.x,
+                 (double)st->six_axis_sensor_angle.y, (double)st->six_axis_sensor_angle.z);
+    }
+}
+
+void probe_experiment(void) {
+    probe_start();
+    Result rc = hiddbgDumpHdlsStates(hdls_session, &dump_list);
+    if (R_FAILED(rc)) {
+        log_line("dump stati: rc 0x%x", rc);
+        return;
+    }
+    log_list("dump 1");
+    // Same values as probe_start, written through the list command this time.
+    for (int i = 0; i < dump_list.total_entries && i < 0x10; i++) {
+        HiddbgHdlsStateListEntry *e = &dump_list.entries[i];
+        for (int k = 0; k < VARIANTS; k++) {
+            if (!attached[k] || e->handle.handle != handles[k].handle) continue;
+            e->state.attribute = variants[k].attributes;
+            e->state.six_axis_sensor_acceleration = (HidVector){ 0.50f, 0.25f * (k + 1), -1.0f };
+            e->state.six_axis_sensor_angle = (HidVector){ 0.1f * (k + 1), 0.0f, 0.0f };
+        }
+    }
+    rc = hiddbgApplyHdlsStateList(hdls_session, &dump_list);
+    log_line("apply lista: rc 0x%x", rc);
+    rc = hiddbgDumpHdlsStates(hdls_session, &dump_list);
+    if (R_SUCCEEDED(rc)) log_list("dump 2");
+}
