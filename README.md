@@ -106,6 +106,13 @@ Games see a wired Xbox 360 controller (same identity as the kernel `xpad` driver
 3. A black and blue Pro Controller appears; up to four phones can connect. The buttons follow the
    Nintendo layout, by position (the bottom button is B).
 
+#### Motion
+
+Tap **⟲** on the controller screen: the virtual controller gets a motion sensor like a Joy-Con, fed by
+the phone's accelerometer and gyroscope, so games read shakes and rotation natively (tilt steering in
+Mario Kart 8 Deluxe, cap throws in Super Mario Odyssey). **⎈** is a different thing: it turns tilting the
+phone into left-stick input, for games without motion controls; the two exclude each other.
+
 #### Amiibo
 
 With [emuiibo](https://github.com/XorTroll/emuiibo) also installed on the Switch, the app can put an

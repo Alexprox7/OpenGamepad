@@ -21,9 +21,11 @@
   removed that API, so on most phones the Switch drops the connection.
 - **Motion** (all off by default, *Movimento* card): tilt steering on the left stick (max angle, dead
   zone, curve, re-centre, optional Y from leaning) for every host, a shake gesture that presses a chosen
-  button, real gyro to the Switch sysmodule and the Bluetooth Pro Controller, and a DSU (cemuhook) server
-  on UDP 26760 for Cemu, Ryujinx, Dolphin, Citra and other emulators. A ⎈ button on the controller
-  screen toggles steering.
+  button, and a DSU (cemuhook) server on UDP 26760 for Cemu, Ryujinx, Dolphin, Citra and other emulators.
+  ⎈ on the controller screen toggles steering, ⟲ the motion sensor.
+- **Joy-Con-style motion on the Switch** over Wi‑Fi: the virtual Pro Controller has a real motion sensor
+  fed by the phone's accelerometer and gyroscope at 200 Hz, read natively by games (Mario Kart 8 Deluxe
+  tilt steering, Super Mario Odyssey cap throws). Also in the Bluetooth Pro Controller reports.
 - **Radial menus**: each wheel opens either while the combo is held or stays open until a pick
   (A, a tap or the combo again confirms, B goes back); slices can be folders with sub-wheels, like reWASD.
 - **Amiibo for the Switch** (needs emuiibo): an NFC button and a mappable *⚡ amiibo* wheel list the dumps

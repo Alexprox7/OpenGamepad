@@ -119,8 +119,8 @@ The companion presses and releases keys according to the difference with the pre
 ### 17 – Motion (OpenGamepad extension)
 
 Phone → host over **UDP**, only to hosts that answered the hello with the `"OGP"` marker and only while
-"Giroscopio reale" is on in the app, at up to ~100 Hz (one packet per gyroscope sample, at least 9 ms
-apart). Not sent over USB. 16‑byte payload:
+the motion sensor is on in the app (⟲ on the controller screen), at up to ~200 Hz (one packet per
+gyroscope sample, at least 4.5 ms apart). Not sent over USB. 16‑byte payload:
 
 | Type | Field |
 |---|---|
@@ -181,18 +181,25 @@ ZL/ZR. A phone silent for 10 s is dropped.
 
 ### Motion on the Switch
 
-On HOS 12.0.0+ (where `HiddbgHdlsState` has the fields; the console checks with `hosversionAtLeast`) the
-virtual Pro Controller is attached with `HasVirtualSixAxisSensorAcceleration | HasVirtualSixAxisSensorAngle`
-and type‑17 samples drive it:
+On HOS 12.0.0+ the virtual Pro Controller gets a motion sensor that games read natively (verified on
+HOS 21.1.0 with Mario Kart 8 Deluxe and Super Mario Odyssey). HID only gives a virtual controller a
+sensor when `HasVirtualSixAxisSensorAcceleration | HasVirtualSixAxisSensorAngle` are already in its state
+**when it is created**, and only `ApplyHdlsStateList` creates a device that way: one made with
+`AttachHdlsVirtualDevice` keeps the values written later, but games read zeros. The sysmodule therefore
+dumps the HDLS state list, appends its device with a handle of its own (prefix `0x4F4750…`, unique per
+device) and applies it. Devices created like this outlive the process, so every start removes the ones
+with that prefix left by an earlier run (stopping the module from ovl-sysmodules).
 
 | HDLS field | From the type‑17 sample |
 |---|---|
-| `six_axis_sensor_acceleration` (g) | (x, y, −z) / 1000 |
-| `six_axis_sensor_angle` (revolutions, 1.0 = 360°) | integral of (x, y, −z) × 0.1 °/s ÷ 360 over the sample timestamps |
+| `six_axis_sensor_acceleration` (g) | −(x, y, z) / 1000 |
+| `six_axis_sensor_angle` (revolutions, 1.0 = 360°) | integral of −(x, y, z) × 0.1 °/s ÷ 360 over the sample timestamps |
 
-The Switch frame is x right, y towards the top edge, z into the controller (a Pro Controller lying flat
-face up reads z = −1 g), so z flips sign. The angle follows `HidSixAxisSensorState.angle`: rotation
-integrated per axis. With no sample for 0.5 s the acceleration returns to the resting (0, 0, −1) and the
+The axes are the phone's (x right, y top edge, z out of the screen); the Switch uses the opposite sign
+convention for both vectors: acceleration is the gravity vector (measured with the console's own
+sensor: flat 0, 0, −1; upright 0, −1, 0; right side down +1, 0, 0), and rotation follows it, otherwise
+HID's orientation fuses a gyro that disagrees with gravity and tilt steering drifts. The angle follows
+`HidSixAxisSensorState.angle`: rotation integrated per axis. With no sample for 0.5 s the acceleration returns to the resting (0, 0, −1) and the
 angle stays where it is. Late UDP packets (older timestamp) are dropped; gaps are not extrapolated beyond
 0.1 s.
 

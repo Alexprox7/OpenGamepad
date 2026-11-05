@@ -103,6 +103,14 @@ I giochi vedono un controller Xbox 360 cablato (stessa identità del driver `xpa
 3. Compare un Pro Controller nero e blu; si possono collegare fino a quattro telefoni. I pulsanti
    seguono la disposizione Nintendo, per posizione (quello in basso è B).
 
+#### Movimento
+
+Tocca **⟲** sul controller: il controller virtuale ha un sensore di movimento come un Joy-Con, alimentato
+da accelerometro e giroscopio del telefono, quindi i giochi leggono scosse e rotazione in modo nativo
+(sterzo in Mario Kart 8 Deluxe, lancio del cappello in Super Mario Odyssey). **⎈** è un'altra cosa:
+trasforma l'inclinazione del telefono in stick sinistro, per i giochi senza controlli di movimento; i due
+si escludono a vicenda.
+
 #### Amiibo
 
 Con [emuiibo](https://github.com/XorTroll/emuiibo) installato sulla Switch, l'app può appoggiare un
