@@ -185,6 +185,7 @@ typedef struct {
     u64 last_motion;            // time of the latest motion sample, 0 when at rest
     u32 motion_time;            // phone timestamp of that sample (µs)
     u32 motions;                // motion samples received
+    bool dirty;                 // state changed since the last SetHdlsState
 } Client;
 
 static Client clients[MAX_CLIENTS];
@@ -341,7 +342,7 @@ static void apply_state(Client *c, const u8 *p, bool udp) {
     c->state.analog_stick_r.y = rds16(p + 8);
     c->last_seen = now_ns();
     if (c->states++ == 0) log_line("primo stato da %s via %s", inet_ntoa(c->addr), udp ? "UDP" : "TCP");
-    push_state(c);
+    c->dirty = true; // sent once per loop round, see main
 }
 
 /**
@@ -376,7 +377,7 @@ static void apply_motion(Client *c, const u8 *p) {
     angle->x -= rds16(p + 10) * rev;
     angle->y -= rds16(p + 12) * rev;
     angle->z -= rds16(p + 14) * rev;
-    push_state(c);
+    c->dirty = true; // sent once per loop round, see main
 }
 
 // ---------------------------------------------------------------------------------------
@@ -456,22 +457,34 @@ static bool read_tcp(Client *c) {
 
 static u32 udp_unknown;
 
-static void read_udp(int fd) {
+/** Handles one datagram; false when none is waiting. */
+static bool read_udp_one(int fd) {
     u8 packet[128];
     struct sockaddr_in from;
     socklen_t from_len = sizeof(from);
     ssize_t n = recvfrom(fd, packet, sizeof(packet), 0, (struct sockaddr *)&from, &from_len);
-    if (n < RX_HEADER || rd16(packet) > n) return;
+    if (n < 0) return false;
+    if (n < RX_HEADER || rd16(packet) > n) return true;
     // States are only accepted from a phone that completed the TCP handshake.
     for (int i = 0; i < MAX_CLIENTS; i++) {
         Client *c = &clients[i];
         if (c->fd >= 0 && c->greeted && c->addr.s_addr == from.sin_addr.s_addr) {
             if (packet[6] == TYPE_STATE && rd16(packet) >= RX_HEADER + 12) apply_state(c, packet + RX_HEADER, true);
             else if (packet[6] == TYPE_MOTION && rd16(packet) >= RX_HEADER + MOTION_SIZE) apply_motion(c, packet + RX_HEADER);
-            return;
+            return true;
         }
     }
     if (udp_unknown++ == 0) log_line("stati UDP da %s ignorati: nessun hello da quell'indirizzo", inet_ntoa(from.sin_addr));
+    return true;
+}
+
+/**
+ * Drains every waiting datagram. Reading one per round, each followed by a SetHdlsState, could
+ * not keep up with 200 Hz motion while a game slows HID down: the socket buffer filled and the
+ * few button states (5 per second) were the packets dropped, so the controller got no input.
+ */
+static void read_udp(int fd) {
+    for (int i = 0; i < 256 && read_udp_one(fd); i++) {}
 }
 
 /** Summary line, connected phones and the latest log lines. */
@@ -739,6 +752,11 @@ int main(int argc, char **argv) {
             } else if (c->fd >= 0 && c->last_motion && now - c->last_motion > MOTION_IDLE_NS) {
                 // Gyro switched off on the phone: back to a still controller, not frozen mid-tilt.
                 motion_rest(c);
+                c->dirty = true;
+            }
+            // One SetHdlsState per round with the latest buttons, sticks and motion.
+            if (c->fd >= 0 && c->dirty) {
+                c->dirty = false;
                 push_state(c);
             }
         }
