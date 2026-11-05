@@ -208,6 +208,25 @@ static void motion_rest(Client *c) {
  */
 static HiddbgHdlsStateList hdls_list;
 
+// Devices created through the list outlive this process (stopping the module from
+// ovl-sysmodules leaves them frozen, on player 1). Their handles are the ones we pass, so they
+// carry this prefix; every start removes the ones left behind.
+#define OUR_HANDLE_PREFIX 0x4F47500000000000ULL
+#define OUR_HANDLE_MASK   0xFFFFFF0000000000ULL
+
+static void remove_leftover_controllers(void) {
+    if (R_FAILED(hiddbgDumpHdlsStates(hdls_session, &hdls_list))) return;
+    int removed = 0;
+    for (int i = 0; i < hdls_list.total_entries && i < 0x10; i++) {
+        u64 handle = hdls_list.entries[i].handle.handle;
+        if ((handle & OUR_HANDLE_MASK) != OUR_HANDLE_PREFIX) continue;
+        Result rc = hiddbgDetachHdlsVirtualDevice((HiddbgHdlsHandle){ handle });
+        if (R_SUCCEEDED(rc)) removed++;
+        else log_line("controller rimasto da una sessione precedente non rimosso: rc 0x%x", rc);
+    }
+    if (removed) log_line("rimossi %d controller rimasti da una sessione precedente", removed);
+}
+
 static Result attach_with_motion(Client *c, const HiddbgHdlsDeviceInfo *info) {
     Result rc = hiddbgDumpHdlsStates(hdls_session, &hdls_list);
     if (R_FAILED(rc)) return rc;
@@ -215,10 +234,11 @@ static Result attach_with_motion(Client *c, const HiddbgHdlsDeviceInfo *info) {
     if (count < 0 || count >= 0x10) return MAKERESULT(Module_Libnx, LibnxError_OutOfMemory);
     u64 before[0x10];
     for (int i = 0; i < count; i++) before[i] = hdls_list.entries[i].handle.handle;
-
+    // Unique, so it never matches a device left by an earlier run (HID would just update it).
+    u64 handle = OUR_HANDLE_PREFIX | (armGetSystemTick() & ~OUR_HANDLE_MASK);
     HiddbgHdlsStateListEntry *e = &hdls_list.entries[count];
     memset(e, 0, sizeof(*e));
-    e->handle.handle = 0x4F47500000000100ULL | (u64)(c - clients); // not an existing device
+    e->handle.handle = handle;
     e->device = *info;
     e->state = c->state;
     hdls_list.total_entries = count + 1;
@@ -227,16 +247,18 @@ static Result attach_with_motion(Client *c, const HiddbgHdlsDeviceInfo *info) {
 
     rc = hiddbgDumpHdlsStates(hdls_session, &hdls_list);
     if (R_FAILED(rc)) return rc;
+    // HID keeps the handle we passed; if it ever assigns its own, take the device that is new.
+    u64 created = 0;
     for (int i = 0; i < hdls_list.total_entries && i < 0x10; i++) {
-        u64 handle = hdls_list.entries[i].handle.handle;
+        u64 h = hdls_list.entries[i].handle.handle;
         bool known = false;
-        for (int k = 0; k < count; k++) known |= handle == before[k];
-        if (!known) {
-            c->pad.handle = handle;
-            return 0;
-        }
+        for (int k = 0; k < count; k++) known |= h == before[k];
+        if (h == handle) created = h;
+        else if (!known && !created) created = h;
     }
-    return MAKERESULT(Module_Libnx, LibnxError_NotFound);
+    if (!created) return MAKERESULT(Module_Libnx, LibnxError_NotFound);
+    c->pad.handle = created;
+    return 0;
 }
 
 static bool attach_pad(Client *c) {
@@ -637,6 +659,7 @@ int main(int argc, char **argv) {
     Result rc = hiddbgAttachHdlsWorkBuffer(&hdls_session, hdls_work, sizeof(hdls_work));
     log_line("buffer HDLS: rc 0x%x", rc);
     if (R_FAILED(rc)) diagAbortWithResult(rc);
+    remove_leftover_controllers();
     log_line(psc_registered ? "registrato per sospensione/spegnimento" : "ATTENZIONE: registrazione PSC fallita");
 
     for (;;) {
