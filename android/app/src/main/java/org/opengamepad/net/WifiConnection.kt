@@ -50,6 +50,11 @@ class WifiConnection(private val deviceId: Long) {
     private val writeLock = Any()
     @Volatile private var companion = false
     private val sequence = AtomicInteger(0)
+    // Diagnostics (logcat tag WifiConnection): which connection sends what.
+    private val sessionCounter = AtomicInteger(0)
+    @Volatile private var sessionId = 0
+    private val statesSent = AtomicInteger(0)
+    private val motionSent = AtomicInteger(0)
 
     private val _status = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Idle)
     val status: StateFlow<ConnectionStatus> = _status
@@ -87,6 +92,11 @@ class WifiConnection(private val deviceId: Long) {
     }
 
     private suspend fun runSession(host: String, target: ConnectTarget, label: String) {
+        val id = sessionCounter.incrementAndGet()
+        sessionId = id
+        statesSent.set(0)
+        motionSent.set(0)
+        Log.i(TAG, "connessione $id: verso $host:${target.port}")
         val address = withContext(Dispatchers.IO) { InetAddress.getByName(host) }
         val socket = Socket().apply {
             tcpNoDelay = true
@@ -110,7 +120,7 @@ class WifiConnection(private val deviceId: Long) {
             reply = readMessage(input)
         }
         socket.soTimeout = 0
-        Log.i(TAG, "handshake reply: $reply")
+        Log.i(TAG, "connessione $id: risposta $reply")
         // The PC answers with type 0: u16 UDP port, then (v1.1+) u8 operating system.
         val body = reply.payloadBuffer()
         if (body.remaining() < 2) throw IOException("risposta di handshake non valida")
@@ -124,7 +134,7 @@ class WifiConnection(private val deviceId: Long) {
         fun writeTcp(packet: ByteArray) = synchronized(writeLock) { output.write(packet); output.flush() }
         tcpWriter = if (companion) ::writeTcp else null
 
-        scope.launch { receiveTcp(input) }
+        scope.launch { receiveTcp(input, socket) }
         if (companion) scope.launch {
             for (state in keyboard) {
                 val payload = byteArrayOf(state.modifiers.toByte(), state.keys.size.toByte()) +
@@ -152,23 +162,33 @@ class WifiConnection(private val deviceId: Long) {
     /** Sends every new state immediately and repeats the last one as a keep-alive. */
     private suspend fun sendLoop(send: (ByteArray) -> Unit) {
         var last = ControllerState.NEUTRAL
+        val id = sessionId
+        var reportAt = System.nanoTime()
         while (scope.isActive && tcp?.isClosed == false) {
+            if (System.nanoTime() - reportAt > 5_000_000_000L) {
+                reportAt = System.nanoTime()
+                Log.i(TAG, "connessione $id: stati ${statesSent.get()}, movimento ${motionSent.get()}")
+            }
             last = withTimeoutOrNull(KEEPALIVE_MS) { outgoing.receive() } ?: last
             val packet = Wire.frame(Wire.TYPE_STATE, sequence.getAndIncrement(), last.encode())
             try {
                 send(packet)
+                statesSent.incrementAndGet()
             } catch (e: IOException) {
+                Log.w(TAG, "connessione $id: invio fallito", e)
                 fail("invio fallito: ${e.message}")
                 return
             }
         }
+        Log.i(TAG, "connessione $id: invio stati terminato (attiva ${scope.isActive}, tcp ${tcp?.isClosed}, connessione corrente ${sessionId})")
     }
 
-    private suspend fun receiveTcp(input: DataInputStream) {
+    private suspend fun receiveTcp(input: DataInputStream, socket: Socket) {
         try {
             while (scope.isActive) handleIncoming(readMessage(input))
         } catch (e: IOException) {
-            fail("il PC ha chiuso la connessione")
+            // A connection replaced by a newer one ends here too: it must not close the new one.
+            if (tcp === socket) fail("il PC ha chiuso la connessione")
         }
     }
 
@@ -221,6 +241,7 @@ class WifiConnection(private val deviceId: Long) {
         val packet = Wire.frame(Wire.TYPE_MOTION, sequence.getAndIncrement(), sample.encode())
         try {
             socket.send(DatagramPacket(packet, packet.size))
+            motionSent.incrementAndGet()
         } catch (_: IOException) {
             // the state loop reports broken links
         }
@@ -248,11 +269,13 @@ class WifiConnection(private val deviceId: Long) {
     }
 
     private fun fail(reason: String) {
+        Log.i(TAG, "connessione $sessionId: chiusa ($reason)")
         if (_status.value is ConnectionStatus.Connected) _status.value = ConnectionStatus.Failed(reason)
         closeSockets()
     }
 
     fun disconnect() {
+        if (tcp != null) Log.i(TAG, "connessione $sessionId: chiusa dall'app")
         companion = false
         session?.cancel()
         session = null
