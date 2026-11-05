@@ -196,9 +196,9 @@ with that prefix left by an earlier run (stopping the module from ovl-sysmodules
 | `six_axis_sensor_angle` (revolutions, 1.0 = 360°) | integral of (x, y, −z) × 0.1 °/s ÷ 360 over the sample timestamps |
 
 The axes are the phone's (x right, y top edge, z out of the screen) with z negated for both vectors.
-With the app's default axis preset (J, Joy-Con) the phone already flips x and y of both vectors before
-sending, so the controller gets all three axes in the console sensor's convention; preset A sends them
-unflipped.
+The app's axis preset changes what it sends, per game: 🏎 (kart, default) sends the axes as they are,
+🎩 (Cappy) flips x and y of the acceleration only, so gravity reaches the controller in the console
+sensor's convention.
 This is the mapping tested in games (Mario Kart 8 Deluxe tilt steering, Super Mario Odyssey throws).
 The console's own sensor reads x and y of the acceleration with the opposite sign (flat 0, 0, −1;
 upright 0, −1, 0; right side down +1, 0, 0), but negating them, alone or together with the gyro, made

@@ -49,7 +49,13 @@ class Prefs(context: Context) {
         get() = prefs.getString(KEY_MOTION, null)
         set(value) = prefs.edit().putString(KEY_MOTION, value).apply()
 
+    /** Phone vibration for the game's rumble (companions, Bluetooth Pro Controller). */
+    var rumble: Boolean
+        get() = prefs.getBoolean(KEY_RUMBLE, true)
+        set(value) = prefs.edit().putBoolean(KEY_RUMBLE, value).apply()
+
     private companion object {
+        const val KEY_RUMBLE = "rumble"
         const val KEY_MOTION = "motion"
         const val KEY_ORIGINAL_CLASS = "original_device_class"
         const val KEY_BLUETOOTH_PROFILE = "bluetooth_profile"

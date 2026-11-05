@@ -112,8 +112,9 @@ Tap **⟲** on the controller screen: the virtual controller gets a motion senso
 the phone's accelerometer and gyroscope, so games read shakes and rotation natively (tilt steering in
 Mario Kart 8 Deluxe, cap throws in Super Mario Odyssey). **⎈** is a different thing: it turns tilting the
 phone into left-stick input, for games without motion controls; the two exclude each other. While the
-sensor is on, **J/A** switches the axis convention: J (Joy-Con, default) follows the console's own sensor,
-A is the first mapping, kept for games that prefer it.
+sensor is on, two buttons pick the axis convention per game: 🏎 for Mario Kart (tilt steering) and
+🎩 for Super Mario Odyssey (Cappy throws). 📳 turns the phone's vibration for the game's rumble on
+or off (companions and Bluetooth; the Switch does not report rumble for virtual controllers).
 
 #### Amiibo
 

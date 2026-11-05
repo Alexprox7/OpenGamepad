@@ -107,8 +107,10 @@ void __appInit(void) {
     if (R_FAILED(rc)) diagAbortWithResult(rc);
     // Depending on fs, hid and sockets means we are told to sleep before them and to wake after.
     if (R_SUCCEEDED(pscmInitialize())) {
-        const u32 dependencies[] = { PscPmModuleId_Fs, PscPmModuleId_Hid, PscPmModuleId_WlanSockets };
-        psc_registered = R_SUCCEEDED(pscmGetPmModule(&psc_module, (PscPmModuleId)PSC_MODULE_ID, dependencies, 3, true));
+        // Fs only, like sys-con (which sleeps fine next to us): with Hid and WlanSockets too the
+        // console froze going to sleep, with no crash report.
+        const u32 dependencies[] = { PscPmModuleId_Fs };
+        psc_registered = R_SUCCEEDED(pscmGetPmModule(&psc_module, (PscPmModuleId)PSC_MODULE_ID, dependencies, 1, true));
     }
     smExit();
 }
@@ -611,6 +613,8 @@ static bool suspended;
  * closed, then the request is acknowledged; nothing touches sockets, hid or the SD card until
  * the console is awake again (libnx calls that state ReadyAwaken; it is MinimumAwake).
  */
+static bool reset_after_wake; // close the stale sockets once the wake-up is acknowledged
+
 static void handle_power_request(void) {
     PscPmState state;
     u32 flags;
@@ -619,23 +623,25 @@ static void handle_power_request(void) {
     case PscPmState_ReadySleep:
     case PscPmState_ReadyShutdown:
         if (!suspended) {
-            log_line(state == PscPmState_ReadySleep ? "sospensione: chiudo connessioni e controller" : "spegnimento");
-            for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i], "console in sospensione");
+            log_line(state == PscPmState_ReadySleep ? "sospensione: rimuovo i controller" : "spegnimento");
+            // Only the controllers (hid) and the amiibo thread here. No socket calls: the network
+            // may already be asleep and sockets do not survive sleep anyway.
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (!clients[i].attached) continue;
+                hiddbgDetachHdlsVirtualDevice(clients[i].pad);
+                clients[i].attached = false;
+            }
             amiibo_suspend();
-            if (listener >= 0) close(listener);
-            if (udp >= 0) close(udp);
-            if (discovery >= 0) close(discovery);
-            listener = udp = discovery = -1;
             log_to_sd = false;
             suspended = true;
         }
         break;
-    case PscPmState_ReadyAwaken:
+    case PscPmState_ReadyAwaken: // MinimumAwake: fs is back, the network may not be yet
         if (suspended) {
             suspended = false;
             log_to_sd = true;
             log_line("risveglio");
-            next_open = 0; // sockets are reopened (and retried) by the main loop
+            reset_after_wake = true;
         }
         break;
     default:
@@ -681,6 +687,16 @@ int main(int argc, char **argv) {
             if (R_SUCCEEDED(eventWait(&psc_module.event, 0))) {
                 handle_power_request();
                 if (suspended) continue;
+            }
+            if (reset_after_wake) {
+                // After the acknowledgement, so a slow network cannot stall the wake-up.
+                reset_after_wake = false;
+                for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i], "console in sospensione");
+                if (listener >= 0) close(listener);
+                if (udp >= 0) close(udp);
+                if (discovery >= 0) close(discovery);
+                listener = udp = discovery = -1;
+                next_open = 0;
             }
         }
 

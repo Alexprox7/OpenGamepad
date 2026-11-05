@@ -17,12 +17,12 @@ enum class GyroMode {
 }
 
 /**
- * How the phone's axes reach the Switch sysmodule's virtual controller.
- * [JOYCON]: acceleration and rotation in the console sensor's own convention (gravity and gyro
- * consistent, like a real Joy-Con). [ALTERNATIVE]: x and y as the phone reports them; the first
- * mapping, kept in case a game prefers it.
+ * How the phone's axes reach the Switch sysmodule's virtual controller, chosen per game (verified
+ * in play): [KART] sends them as they are, Mario Kart 8 Deluxe tilt steering is right; [CAPPY]
+ * flips x and y of the acceleration (gravity in the console sensor's convention), Super Mario
+ * Odyssey throws go where the phone points. Flipping the gyro too broke both.
  */
-enum class AxisPreset { JOYCON, ALTERNATIVE }
+enum class AxisPreset { KART, CAPPY }
 
 /** Motion options. Everything is off by default. Angles in degrees. */
 data class MotionSettings(
@@ -45,7 +45,7 @@ data class MotionSettings(
     val gyroMode: GyroMode = GyroMode.FULL,
     /** [GyroMode.SHAKE]: factor applied to the phone's linear acceleration. */
     val shakeGain: Float = 2.5f,
-    val axes: AxisPreset = AxisPreset.JOYCON,
+    val axes: AxisPreset = AxisPreset.KART,
     /** DSU (cemuhook) server for PC emulators on UDP [DSU_PORT]. */
     val dsu: Boolean = false,
 ) {

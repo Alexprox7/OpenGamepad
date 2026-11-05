@@ -287,12 +287,12 @@ class MotionTest {
     }
 
     @Test
-    fun axisPresetDefaultsToJoyConAndFlipsXY() {
-        assertEquals(AxisPreset.JOYCON, MotionSettings().axes)
-        assertEquals(AxisPreset.JOYCON, MotionSettings.parse("""{"gyro":true}""").axes)
-        val alt = MotionSettings(axes = AxisPreset.ALTERNATIVE)
-        assertEquals(alt, MotionSettings.parse(alt.toJson()))
-        val flipped = MotionSample(1, 0.1f, 0.2f, 0.3f, 4f, 5f, 6f).flippedXY()
-        assertEquals(MotionSample(1, -0.1f, -0.2f, 0.3f, -4f, -5f, 6f), flipped)
+    fun axisPresetDefaultsToKartAndCappyFlipsAccelOnly() {
+        assertEquals(AxisPreset.KART, MotionSettings().axes)
+        assertEquals(AxisPreset.KART, MotionSettings.parse("""{"axes":"JOYCON"}""").axes)
+        val cappy = MotionSettings(axes = AxisPreset.CAPPY)
+        assertEquals(cappy, MotionSettings.parse(cappy.toJson()))
+        val flipped = MotionSample(1, 0.1f, 0.2f, 0.3f, 4f, 5f, 6f).flippedAccelXY()
+        assertEquals(MotionSample(1, -0.1f, -0.2f, 0.3f, 4f, 5f, 6f), flipped)
     }
 }

@@ -87,14 +87,14 @@ fun MotionCard(motion: MotionController) {
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FilterChip(
-                            selected = s.axes == AxisPreset.JOYCON,
-                            onClick = { set { it.copy(axes = AxisPreset.JOYCON) } },
-                            label = { Text("Assi Joy-Con (J)") },
+                            selected = s.axes == AxisPreset.KART,
+                            onClick = { set { it.copy(axes = AxisPreset.KART) } },
+                            label = { Text("🏎 Assi kart") },
                         )
                         FilterChip(
-                            selected = s.axes == AxisPreset.ALTERNATIVE,
-                            onClick = { set { it.copy(axes = AxisPreset.ALTERNATIVE) } },
-                            label = { Text("Assi alternativi (A)") },
+                            selected = s.axes == AxisPreset.CAPPY,
+                            onClick = { set { it.copy(axes = AxisPreset.CAPPY) } },
+                            label = { Text("🎩 Assi Cappy") },
                         )
                     }
                     if (s.gyroMode == GyroMode.SHAKE) {

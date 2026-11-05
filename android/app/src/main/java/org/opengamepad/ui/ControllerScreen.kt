@@ -46,7 +46,10 @@ fun ControllerScreen(
     onMotionSensor: (() -> Unit)? = null,
     /** Motion axis preset while the sensor is on (null hides the switch). */
     axisPreset: org.opengamepad.motion.AxisPreset? = null,
-    onAxisPreset: () -> Unit = {},
+    onAxisPreset: (org.opengamepad.motion.AxisPreset) -> Unit = {},
+    /** Phone vibration for the game's rumble. */
+    rumble: Boolean = true,
+    onRumble: (() -> Unit)? = null,
     /** Opens the amiibo wheel; null hides the button (not connected to a Switch). */
     onAmiibo: (() -> Unit)? = null,
 ) {
@@ -91,10 +94,17 @@ fun ControllerScreen(
                     PadButton("⟲", { if (it) onMotionSensor() }, Modifier.size(44.dp), fontSize = 20,
                         color = if (motionSensor) Accent else Color.White)
                 }
-                // J = Joy-Con axes, A = alternative mapping: switch per game without leaving it.
+                // Motion axes per game: kart for Mario Kart, top hat (Cappy) for Super Mario Odyssey.
                 if (axisPreset != null) {
-                    PadButton(if (axisPreset == org.opengamepad.motion.AxisPreset.JOYCON) "J" else "A",
-                        { if (it) onAxisPreset() }, Modifier.size(44.dp), fontSize = 16, color = Accent)
+                    for ((preset, icon) in listOf(org.opengamepad.motion.AxisPreset.KART to "🏎",
+                        org.opengamepad.motion.AxisPreset.CAPPY to "🎩")) {
+                        PadButton(icon, { if (it) onAxisPreset(preset) }, Modifier.size(44.dp), fontSize = 18,
+                            color = if (axisPreset == preset) Accent else Color(0xFF5F6673))
+                    }
+                }
+                if (onRumble != null) {
+                    PadButton("📳", { if (it) onRumble() }, Modifier.size(44.dp), fontSize = 16,
+                        color = if (rumble) Accent else Color(0xFF5F6673))
                 }
                 if (onAmiibo != null) PadButton("NFC", { if (it) onAmiibo() }, Modifier.size(44.dp), fontSize = 12)
             }

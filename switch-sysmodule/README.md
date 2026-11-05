@@ -28,10 +28,11 @@ Then in the app tap *Cerca* and pick *Nintendo Switch*, or type `<Switch IP>:478
 - `tools/motion-test`: homebrew app that shows what games read from every controller's motion sensor.
 - A phone silent for 10 s is disconnected and its controller removed. After sleep mode the sockets
   are reopened.
-- Sleep and shutdown: registered with PSC (module id 0x4750, after fs, hid and sockets). Before the
-  console sleeps it disconnects the phones, removes the controllers, closes its sockets and stops
-  writing the log; phones reconnect after wake-up. Without this, spsm times out and the console
-  crashes (omm fatal 2165-0001).
+- Sleep and shutdown: registered with PSC (module id 0x4750, depending on fs only, like sys-con).
+  Before the console sleeps it removes the controllers, lets the amiibo thread finish and stops
+  writing the log, with no socket calls (the network may already be asleep); the sockets are closed
+  and reopened after wake-up, and phones reconnect. Without PSC handling spsm timed out (omm fatal
+  2165-0001); with extra hid and socket dependencies the console froze going to sleep.
 - Memory: about 500 KiB in total (256 KiB heap, small socket buffers). The System pool shared by all
   sysmodules has only a few MiB free, and overrunning it crashes the console.
 

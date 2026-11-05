@@ -27,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var amiibo: AmiiboController
 
     private var showPad by mutableStateOf(false)
+    private var rumbleOn by mutableStateOf(true)
     private var showMacros by mutableStateOf(false)
     private var showJson by mutableStateOf(false)
     private var foundHosts by mutableStateOf(emptyList<org.opengamepad.net.FoundHost>())
@@ -193,7 +195,7 @@ class MainActivity : ComponentActivity() {
             sample?.let {
                 // The axis preset only concerns the Switch sysmodule (the Bluetooth Pro Controller
                 // and DSU have their own conversions).
-                connection.sendMotion(if (motion.settings.value.axes == AxisPreset.JOYCON) it.flippedXY() else it)
+                connection.sendMotion(if (motion.settings.value.axes == AxisPreset.CAPPY) it.flippedAccelXY() else it)
             }
             bluetooth.sendMotion(sample)
         }
@@ -206,7 +208,14 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { connection.hostMessages.collect(amiibo::onHostMessage) }
         lifecycleScope.launch { amiibo.messages.collect(::toast) }
 
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // The screen stays on only on the controller; elsewhere the phone locks as usual.
+        rumbleOn = prefs.rumble
+        lifecycleScope.launch {
+            snapshotFlow { showPad }.collect { pad ->
+                if (pad) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
         hideSystemBars()
 
         // touch + controller -> macro engine -> PC
@@ -336,10 +345,12 @@ class MainActivity : ComponentActivity() {
                     motionSensor = motionSettings.gyro,
                     onMotionSensor = if (motion.hasGyro) ({ motion.update { it.copy(gyro = !it.gyro) } }) else null,
                     axisPreset = motionSettings.axes.takeIf { motionSettings.gyro },
-                    onAxisPreset = {
-                        motion.update {
-                            it.copy(axes = if (it.axes == AxisPreset.JOYCON) AxisPreset.ALTERNATIVE else AxisPreset.JOYCON)
-                        }
+                    onAxisPreset = { preset -> motion.update { it.copy(axes = preset) } },
+                    rumble = rumbleOn,
+                    onRumble = {
+                        rumbleOn = !rumbleOn
+                        prefs.rumble = rumbleOn
+                        if (!rumbleOn) vibrator()?.cancel()
                     },
                     onAmiibo = if ((status as? ConnectionStatus.Connected)?.pcOs?.startsWith("Switch") == true) {
                         { macros.openRadial(AmiiboMenu.ID) }
@@ -637,6 +648,7 @@ class MainActivity : ComponentActivity() {
     private fun onFeedback(feedback: Feedback) {
         // 255 = the host has no player numbers (Linux companion).
         if (feedback.ledNumber < 16) playerLed = feedback.ledNumber
+        if (!rumbleOn) return
         val strength = maxOf(feedback.largeMotor, feedback.smallMotor)
         val vibrator = vibrator() ?: return
         if (strength == 0) {
