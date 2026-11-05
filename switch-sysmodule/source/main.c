@@ -17,7 +17,6 @@
 
 #include <switch.h>
 #include "amiibo.h"
-#include "probe.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -169,7 +168,7 @@ static void log_open(void) {
 // Virtual controllers
 
 static u8 hdls_work[0x1000] __attribute__((aligned(0x1000)));
-HiddbgHdlsSessionId hdls_session; // also used by probe.c
+static HiddbgHdlsSessionId hdls_session;
 
 typedef struct {
     int fd;                     // TCP control socket, -1 when free
@@ -350,8 +349,9 @@ static void apply_state(Client *c, const u8 *p, bool udp) {
  * y top edge, z out of the screen; proper acceleration, +1 g up at rest; right-handed rates).
  * The Switch reports acceleration as the gravity vector, the opposite of the phone's proper
  * acceleration (measured with the console's own sensor: flat 0,0,-1; upright 0,-1,0; right side
- * down +1,0,0), so all three acceleration axes are negated. Rotation is left as it was (z
- * negated): tilt steering in Mario Kart is right with it. Acceleration is in g; the angle is
+ * down +1,0,0), so all three acceleration axes are negated. Rotation follows the same opposite
+ * convention, so all three axes are negated too: with only z negated, HID's orientation fused a
+ * gyro that disagreed with gravity and Mario Kart's tilt steering drifted. Acceleration is in g; the angle is
  * the rotation integrated per axis in revolutions (1.0 = 360°), like HidSixAxisSensorState.angle.
  */
 static void apply_motion(Client *c, const u8 *p) {
@@ -373,8 +373,8 @@ static void apply_motion(Client *c, const u8 *p) {
     acc->z = -rds16(p + 8) / 1000.0f;
     const float rev = dt * 0.1f / 360.0f;           // 0.1 °/s units over dt → revolutions
     HidVector *angle = &c->state.six_axis_sensor_angle;
-    angle->x += rds16(p + 10) * rev;
-    angle->y += rds16(p + 12) * rev;
+    angle->x -= rds16(p + 10) * rev;
+    angle->y -= rds16(p + 12) * rev;
     angle->z -= rds16(p + 14) * rev;
     push_state(c);
 }
@@ -503,14 +503,6 @@ static void read_discovery(int fd) {
     } else if (strncmp(packet, "OGP-STATUS", 10) == 0) {
         size_t len = build_status(status_buffer, sizeof(status_buffer));
         sendto(fd, status_buffer, len, 0, (struct sockaddr *)&from, from_len);
-    } else if (strncmp(packet, "OGP-PROBE-END", 13) == 0) {
-        probe_stop();
-    } else if (strncmp(packet, "OGP-PROBE-DUMP", 14) == 0) {
-        probe_experiment();
-    } else if (strncmp(packet, "OGP-PROBE-LIST", 14) == 0) {
-        probe_create_via_list();
-    } else if (strncmp(packet, "OGP-PROBE", 9) == 0) {
-        probe_start();
     }
 }
 
@@ -613,7 +605,6 @@ static void handle_power_request(void) {
         if (!suspended) {
             log_line(state == PscPmState_ReadySleep ? "sospensione: chiudo connessioni e controller" : "spegnimento");
             for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i], "console in sospensione");
-            probe_stop();
             if (listener >= 0) close(listener);
             if (udp >= 0) close(udp);
             if (discovery >= 0) close(discovery);
