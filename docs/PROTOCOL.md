@@ -192,14 +192,14 @@ with that prefix left by an earlier run (stopping the module from ovl-sysmodules
 
 | HDLS field | From the type‑17 sample |
 |---|---|
-| `six_axis_sensor_acceleration` (g) | −(x, y, z) / 1000 |
-| `six_axis_sensor_angle` (revolutions, 1.0 = 360°) | integral of −(x, y, z) × 0.1 °/s ÷ 360 over the sample timestamps |
+| `six_axis_sensor_acceleration` (g) | (x, y, −z) / 1000 |
+| `six_axis_sensor_angle` (revolutions, 1.0 = 360°) | integral of (x, y, −z) × 0.1 °/s ÷ 360 over the sample timestamps |
 
-The axes are the phone's (x right, y top edge, z out of the screen); the Switch uses the opposite sign
-convention for both vectors: acceleration is the gravity vector (measured with the console's own
-sensor: flat 0, 0, −1; upright 0, −1, 0; right side down +1, 0, 0), and rotation follows it, otherwise
-HID's orientation fuses a gyro that disagrees with gravity and tilt steering drifts. The angle follows
-`HidSixAxisSensorState.angle`: rotation integrated per axis. With no sample for 0.5 s the acceleration returns to the resting (0, 0, −1) and the
+The axes are the phone's (x right, y top edge, z out of the screen) with z negated for both vectors.
+This is the mapping tested in games (Mario Kart 8 Deluxe tilt steering, Super Mario Odyssey throws).
+The console's own sensor reads x and y of the acceleration with the opposite sign (flat 0, 0, −1;
+upright 0, −1, 0; right side down +1, 0, 0), but negating them, alone or together with the gyro, made
+Mario Kart's steering drift. The angle follows `HidSixAxisSensorState.angle`: rotation integrated per axis. With no sample for 0.5 s the acceleration returns to the resting (0, 0, −1) and the
 angle stays where it is. Late UDP packets (older timestamp) are dropped; gaps are not extrapolated beyond
 0.1 s.
 

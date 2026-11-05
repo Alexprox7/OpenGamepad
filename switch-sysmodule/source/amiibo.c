@@ -357,11 +357,89 @@ static void handle_clear(int fd) {
     send_status(fd, R_SUCCEEDED(rc) ? RESULT_CLEARED : RESULT_NO_EMUIIBO, rc, "");
 }
 
-void amiibo_handle(int fd, u8 type, const u8 *payload, size_t size) {
+static void dispatch(int fd, u8 type, const u8 *payload, size_t size) {
     switch (type) {
     case TYPE_AMIIBO_LIST_REQUEST: handle_list(fd, payload, size); break;
     case TYPE_AMIIBO_ACTIVATE: handle_activate(fd, payload, size); break;
     case TYPE_AMIIBO_CLEAR: handle_clear(fd); break;
     default: break;
     }
+}
+
+// ---------------------------------------------------------------------------------------
+// Worker thread. emuiibo and the SD card can take seconds to answer while a game is starting
+// (emuiibo is taking over its NFC): done on the input thread, that froze the controller.
+
+#define QUEUE_SIZE 4
+
+typedef struct {
+    int fd;
+    u8 type;
+    u16 size;
+    u8 payload[256];
+} Request;
+
+static Request queue[QUEUE_SIZE];
+static int queue_head, queue_count;
+static bool busy;
+static Mutex queue_mutex;
+static CondVar queue_cond;
+static Thread worker;
+
+static void worker_main(void *arg) {
+    (void)arg;
+    for (;;) {
+        mutexLock(&queue_mutex);
+        while (queue_count == 0) condvarWait(&queue_cond, &queue_mutex);
+        Request r = queue[queue_head];
+        queue_head = (queue_head + 1) % QUEUE_SIZE;
+        queue_count--;
+        busy = true;
+        mutexUnlock(&queue_mutex);
+        // shortcut: the reply goes to r.fd even if that phone disconnected meanwhile and the
+        // descriptor was reused; harmless with one phone, add a connection id for more.
+        dispatch(r.fd, r.type, r.payload, r.size);
+        mutexLock(&queue_mutex);
+        busy = false;
+        mutexUnlock(&queue_mutex);
+    }
+}
+
+void amiibo_start(void) {
+    mutexInit(&queue_mutex);
+    condvarInit(&queue_cond);
+    // Below the input thread (priority 49 in config.json): amiibo never delays a button.
+    Result rc = threadCreate(&worker, worker_main, NULL, NULL, 0x4000, 0x3B, -2);
+    if (R_SUCCEEDED(rc)) rc = threadStart(&worker);
+    if (R_FAILED(rc)) log_line("amiibo: thread non avviato (rc 0x%x)", rc);
+}
+
+void amiibo_handle(int fd, u8 type, const u8 *payload, size_t size) {
+    if (size > sizeof(queue[0].payload)) return;
+    mutexLock(&queue_mutex);
+    if (queue_count < QUEUE_SIZE) {
+        Request *r = &queue[(queue_head + queue_count) % QUEUE_SIZE];
+        r->fd = fd;
+        r->type = type;
+        r->size = (u16)size;
+        memcpy(r->payload, payload, size);
+        queue_count++;
+        condvarWakeOne(&queue_cond);
+    }
+    mutexUnlock(&queue_mutex);
+}
+
+void amiibo_suspend(void) {
+    mutexLock(&queue_mutex);
+    queue_count = 0;
+    mutexUnlock(&queue_mutex);
+    // Let a request in progress finish its SD and emuiibo calls before fs is suspended.
+    for (int i = 0; i < 200; i++) {
+        mutexLock(&queue_mutex);
+        bool working = busy;
+        mutexUnlock(&queue_mutex);
+        if (!working) return;
+        svcSleepThread(10000000ULL);
+    }
+    log_line("amiibo: richiesta ancora in corso alla sospensione");
 }

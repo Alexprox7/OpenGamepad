@@ -132,6 +132,8 @@ static size_t log_tail_len;
 
 static u64 now_ns(void) { return armTicksToNs(armGetSystemTick()); }
 
+static Mutex log_mutex; // log_line runs on the input and the amiibo threads
+
 void log_line(const char *format, ...) {
     char line[192];
     u64 ms = now_ns() / 1000000ULL;
@@ -144,6 +146,7 @@ void log_line(const char *format, ...) {
     line[n++] = '\n';
     line[n] = 0;
 
+    mutexLock(&log_mutex);
     if (log_tail_len + n > sizeof(log_tail)) {
         size_t drop = log_tail_len + n - sizeof(log_tail);
         memmove(log_tail, log_tail + drop, log_tail_len - drop);
@@ -155,6 +158,7 @@ void log_line(const char *format, ...) {
         fputs(line, log_file);
         fflush(log_file);
     }
+    mutexUnlock(&log_mutex);
 }
 
 static void log_open(void) {
@@ -348,11 +352,10 @@ static void apply_state(Client *c, const u8 *p, bool udp) {
 /**
  * Motion sample → virtual six-axis sensor. The phone sends its controller frame (x right edge,
  * y top edge, z out of the screen; proper acceleration, +1 g up at rest; right-handed rates).
- * The Switch reports acceleration as the gravity vector, the opposite of the phone's proper
- * acceleration (measured with the console's own sensor: flat 0,0,-1; upright 0,-1,0; right side
- * down +1,0,0), so all three acceleration axes are negated. Rotation follows the same opposite
- * convention, so all three axes are negated too: with only z negated, HID's orientation fused a
- * gyro that disagreed with gravity and Mario Kart's tilt steering drifted. Acceleration is in g; the angle is
+ * Only z is negated, for both vectors. This is the mapping tested in games: Mario Kart 8 Deluxe
+ * tilt steering is right and Super Mario Odyssey throws behave like with a Joy-Con. (The console's
+ * own sensor reads x and y with the opposite sign, flat 0,0,-1; upright 0,-1,0; right side down
+ * +1,0,0, but negating them, alone or with the gyro, made Mario Kart steering drift.) Acceleration is in g; the angle is
  * the rotation integrated per axis in revolutions (1.0 = 360°), like HidSixAxisSensorState.angle.
  */
 static void apply_motion(Client *c, const u8 *p) {
@@ -369,13 +372,13 @@ static void apply_motion(Client *c, const u8 *p) {
     c->motion_time = t;
     c->last_motion = c->last_seen;
     HidVector *acc = &c->state.six_axis_sensor_acceleration;
-    acc->x = -rds16(p + 4) / 1000.0f;
-    acc->y = -rds16(p + 6) / 1000.0f;
+    acc->x = rds16(p + 4) / 1000.0f;
+    acc->y = rds16(p + 6) / 1000.0f;
     acc->z = -rds16(p + 8) / 1000.0f;
     const float rev = dt * 0.1f / 360.0f;           // 0.1 °/s units over dt → revolutions
     HidVector *angle = &c->state.six_axis_sensor_angle;
-    angle->x -= rds16(p + 10) * rev;
-    angle->y -= rds16(p + 12) * rev;
+    angle->x += rds16(p + 10) * rev;
+    angle->y += rds16(p + 12) * rev;
     angle->z -= rds16(p + 14) * rev;
     c->dirty = true; // sent once per loop round, see main
 }
@@ -618,6 +621,7 @@ static void handle_power_request(void) {
         if (!suspended) {
             log_line(state == PscPmState_ReadySleep ? "sospensione: chiudo connessioni e controller" : "spegnimento");
             for (int i = 0; i < MAX_CLIENTS; i++) close_client(&clients[i], "console in sospensione");
+            amiibo_suspend();
             if (listener >= 0) close(listener);
             if (udp >= 0) close(udp);
             if (discovery >= 0) close(discovery);
@@ -665,6 +669,7 @@ int main(int argc, char **argv) {
     if (R_FAILED(rc)) diagAbortWithResult(rc);
     remove_leftover_controllers();
     log_line(psc_registered ? "registrato per sospensione/spegnimento" : "ATTENZIONE: registrazione PSC fallita");
+    amiibo_start();
 
     for (;;) {
         if (psc_registered) {
