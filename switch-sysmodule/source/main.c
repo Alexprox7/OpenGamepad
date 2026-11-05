@@ -326,9 +326,11 @@ static void apply_state(Client *c, const u8 *p, bool udp) {
 /**
  * Motion sample → virtual six-axis sensor. The phone sends its controller frame (x right edge,
  * y top edge, z out of the screen; proper acceleration, +1 g up at rest; right-handed rates).
- * The Switch frame has z pointing into the controller (lying flat face up it reads z = -1 g),
- * so z is negated for both vectors. Acceleration is in g; the angle is the rotation integrated
- * per axis in revolutions (1.0 = 360°), like HidSixAxisSensorState.angle.
+ * The Switch reports acceleration as the gravity vector, the opposite of the phone's proper
+ * acceleration (measured with the console's own sensor: flat 0,0,-1; upright 0,-1,0; right side
+ * down +1,0,0), so all three acceleration axes are negated. Rotation is left as it was (z
+ * negated): tilt steering in Mario Kart is right with it. Acceleration is in g; the angle is
+ * the rotation integrated per axis in revolutions (1.0 = 360°), like HidSixAxisSensorState.angle.
  */
 static void apply_motion(Client *c, const u8 *p) {
     c->last_seen = now_ns();
@@ -344,8 +346,8 @@ static void apply_motion(Client *c, const u8 *p) {
     c->motion_time = t;
     c->last_motion = c->last_seen;
     HidVector *acc = &c->state.six_axis_sensor_acceleration;
-    acc->x = rds16(p + 4) / 1000.0f;
-    acc->y = rds16(p + 6) / 1000.0f;
+    acc->x = -rds16(p + 4) / 1000.0f;
+    acc->y = -rds16(p + 6) / 1000.0f;
     acc->z = -rds16(p + 8) / 1000.0f;
     const float rev = dt * 0.1f / 360.0f;           // 0.1 °/s units over dt → revolutions
     HidVector *angle = &c->state.six_axis_sensor_angle;
