@@ -111,7 +111,9 @@ Games see a wired Xbox 360 controller (same identity as the kernel `xpad` driver
 Tap **⟲** on the controller screen: the virtual controller gets a motion sensor like a Joy-Con, fed by
 the phone's accelerometer and gyroscope, so games read shakes and rotation natively (tilt steering in
 Mario Kart 8 Deluxe, cap throws in Super Mario Odyssey). **⎈** is a different thing: it turns tilting the
-phone into left-stick input, for games without motion controls; the two exclude each other.
+phone into left-stick input, for games without motion controls; the two exclude each other. While the
+sensor is on, **J/A** switches the axis convention: J (Joy-Con, default) follows the console's own sensor,
+A is the first mapping, kept for games that prefer it.
 
 #### Amiibo
 

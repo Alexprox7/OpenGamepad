@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.opengamepad.motion.AxisPreset
 import org.opengamepad.motion.GyroMode
 import org.opengamepad.motion.MotionController
 import org.opengamepad.motion.MotionSettings
@@ -82,6 +83,18 @@ fun MotionCard(motion: MotionController) {
                             selected = s.gyroMode == GyroMode.FULL,
                             onClick = { set { it.copy(gyroMode = GyroMode.FULL) } },
                             label = { Text("Completo") },
+                        )
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = s.axes == AxisPreset.JOYCON,
+                            onClick = { set { it.copy(axes = AxisPreset.JOYCON) } },
+                            label = { Text("Assi Joy-Con (J)") },
+                        )
+                        FilterChip(
+                            selected = s.axes == AxisPreset.ALTERNATIVE,
+                            onClick = { set { it.copy(axes = AxisPreset.ALTERNATIVE) } },
+                            label = { Text("Assi alternativi (A)") },
                         )
                     }
                     if (s.gyroMode == GyroMode.SHAKE) {

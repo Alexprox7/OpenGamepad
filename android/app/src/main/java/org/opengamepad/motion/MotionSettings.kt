@@ -16,6 +16,14 @@ enum class GyroMode {
     FULL,
 }
 
+/**
+ * How the phone's axes reach the Switch sysmodule's virtual controller.
+ * [JOYCON]: acceleration and rotation in the console sensor's own convention (gravity and gyro
+ * consistent, like a real Joy-Con). [ALTERNATIVE]: x and y as the phone reports them; the first
+ * mapping, kept in case a game prefers it.
+ */
+enum class AxisPreset { JOYCON, ALTERNATIVE }
+
 /** Motion options. Everything is off by default. Angles in degrees. */
 data class MotionSettings(
     /** Tilt steering: rolling the phone drives the left stick X. */
@@ -37,6 +45,7 @@ data class MotionSettings(
     val gyroMode: GyroMode = GyroMode.FULL,
     /** [GyroMode.SHAKE]: factor applied to the phone's linear acceleration. */
     val shakeGain: Float = 2.5f,
+    val axes: AxisPreset = AxisPreset.JOYCON,
     /** DSU (cemuhook) server for PC emulators on UDP [DSU_PORT]. */
     val dsu: Boolean = false,
 ) {
@@ -57,6 +66,7 @@ data class MotionSettings(
         .put("gyro", gyro)
         .put("gyroMode", gyroMode.name)
         .put("shakeGain", shakeGain.toDouble())
+        .put("axes", axes.name)
         .put("dsu", dsu)
         .toString()
 
@@ -84,6 +94,7 @@ data class MotionSettings(
                     gyro = o.optBoolean("gyro", d.gyro),
                     gyroMode = runCatching { GyroMode.valueOf(o.optString("gyroMode")) }.getOrDefault(d.gyroMode),
                     shakeGain = o.optDouble("shakeGain", d.shakeGain.toDouble()).toFloat().coerceIn(1f, 5f),
+                    axes = runCatching { AxisPreset.valueOf(o.optString("axes")) }.getOrDefault(d.axes),
                     dsu = o.optBoolean("dsu", d.dsu),
                 )
             }.getOrDefault(MotionSettings())

@@ -285,4 +285,14 @@ class MotionTest {
         assertEquals(full, MotionSettings.parse(full.toJson()))
         assertEquals(5f, MotionSettings.parse("""{"shakeGain":40}""").shakeGain)
     }
+
+    @Test
+    fun axisPresetDefaultsToJoyConAndFlipsXY() {
+        assertEquals(AxisPreset.JOYCON, MotionSettings().axes)
+        assertEquals(AxisPreset.JOYCON, MotionSettings.parse("""{"gyro":true}""").axes)
+        val alt = MotionSettings(axes = AxisPreset.ALTERNATIVE)
+        assertEquals(alt, MotionSettings.parse(alt.toJson()))
+        val flipped = MotionSample(1, 0.1f, 0.2f, 0.3f, 4f, 5f, 6f).flippedXY()
+        assertEquals(MotionSample(1, -0.1f, -0.2f, 0.3f, -4f, -5f, 6f), flipped)
+    }
 }

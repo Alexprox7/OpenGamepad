@@ -109,7 +109,9 @@ Tocca **⟲** sul controller: il controller virtuale ha un sensore di movimento 
 da accelerometro e giroscopio del telefono, quindi i giochi leggono scosse e rotazione in modo nativo
 (sterzo in Mario Kart 8 Deluxe, lancio del cappello in Super Mario Odyssey). **⎈** è un'altra cosa:
 trasforma l'inclinazione del telefono in stick sinistro, per i giochi senza controlli di movimento; i due
-si escludono a vicenda.
+si escludono a vicenda. Con il sensore attivo, **J/A** cambia la convenzione degli assi: J (Joy-Con,
+predefinita) segue il sensore della console, A è la prima conversione, tenuta per i giochi che la
+preferiscono.
 
 #### Amiibo
 

@@ -47,6 +47,7 @@ import org.opengamepad.input.GamepadInput
 import org.opengamepad.macro.MacroConfig
 import org.opengamepad.macro.MacroEngine
 import org.opengamepad.input.PhysicalGamepad
+import org.opengamepad.motion.AxisPreset
 import org.opengamepad.motion.MotionController
 import org.opengamepad.motion.MotionSettings
 import org.opengamepad.net.ConnectTarget
@@ -189,7 +190,11 @@ class MainActivity : ComponentActivity() {
         motion = MotionController(this, input, MotionSettings.parse(prefs.motionJson), { prefs.motionJson = it.toJson() }, switchAddress())
         // Gyro passthrough: type 17 to the Switch sysmodule, IMU fields of the Bluetooth Pro Controller.
         motion.onSample = { sample ->
-            sample?.let(connection::sendMotion)
+            sample?.let {
+                // The axis preset only concerns the Switch sysmodule (the Bluetooth Pro Controller
+                // and DSU have their own conversions).
+                connection.sendMotion(if (motion.settings.value.axes == AxisPreset.JOYCON) it.flippedXY() else it)
+            }
             bluetooth.sendMotion(sample)
         }
 
@@ -330,6 +335,12 @@ class MainActivity : ComponentActivity() {
                     onRecenter = motion::recenter,
                     motionSensor = motionSettings.gyro,
                     onMotionSensor = if (motion.hasGyro) ({ motion.update { it.copy(gyro = !it.gyro) } }) else null,
+                    axisPreset = motionSettings.axes.takeIf { motionSettings.gyro },
+                    onAxisPreset = {
+                        motion.update {
+                            it.copy(axes = if (it.axes == AxisPreset.JOYCON) AxisPreset.ALTERNATIVE else AxisPreset.JOYCON)
+                        }
+                    },
                     onAmiibo = if ((status as? ConnectionStatus.Connected)?.pcOs?.startsWith("Switch") == true) {
                         { macros.openRadial(AmiiboMenu.ID) }
                     } else null,

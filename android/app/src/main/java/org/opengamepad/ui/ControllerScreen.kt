@@ -44,6 +44,9 @@ fun ControllerScreen(
     /** Joy-Con-style motion sensor on/off; null hides the button (no gyroscope). */
     motionSensor: Boolean = false,
     onMotionSensor: (() -> Unit)? = null,
+    /** Motion axis preset while the sensor is on (null hides the switch). */
+    axisPreset: org.opengamepad.motion.AxisPreset? = null,
+    onAxisPreset: () -> Unit = {},
     /** Opens the amiibo wheel; null hides the button (not connected to a Switch). */
     onAmiibo: (() -> Unit)? = null,
 ) {
@@ -87,6 +90,11 @@ fun ControllerScreen(
                 if (onMotionSensor != null) {
                     PadButton("⟲", { if (it) onMotionSensor() }, Modifier.size(44.dp), fontSize = 20,
                         color = if (motionSensor) Accent else Color.White)
+                }
+                // J = Joy-Con axes, A = alternative mapping: switch per game without leaving it.
+                if (axisPreset != null) {
+                    PadButton(if (axisPreset == org.opengamepad.motion.AxisPreset.JOYCON) "J" else "A",
+                        { if (it) onAxisPreset() }, Modifier.size(44.dp), fontSize = 16, color = Accent)
                 }
                 if (onAmiibo != null) PadButton("NFC", { if (it) onAmiibo() }, Modifier.size(44.dp), fontSize = 12)
             }

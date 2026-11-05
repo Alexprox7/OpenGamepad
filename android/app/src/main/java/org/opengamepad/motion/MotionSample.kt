@@ -40,6 +40,10 @@ data class MotionSample(
             .putShort(clamp16(gyroZ * 10f))
             .array()
 
+    /** x and y of both vectors flipped: with the sysmodule's z flip this gives all three axes in
+     *  the console sensor's convention ([AxisPreset.JOYCON]). */
+    fun flippedXY() = copy(accelX = -accelX, accelY = -accelY, gyroX = -gyroX, gyroY = -gyroY)
+
     companion object {
         const val PAYLOAD_SIZE = 16
 
