@@ -32,7 +32,7 @@ Then in the app tap *Cerca* and pick *Nintendo Switch*, or type `<Switch IP>:478
   console sleeps it disconnects the phones, removes the controllers, closes its sockets and stops
   writing the log; phones reconnect after wake-up. Without this, spsm times out and the console
   crashes (omm fatal 2165-0001).
-- Memory: about 440 KiB in total (256 KiB heap, small socket buffers). The System pool shared by all
+- Memory: about 500 KiB in total (256 KiB heap, small socket buffers). The System pool shared by all
   sysmodules has only a few MiB free, and overrunning it crashes the console.
 
 ## Amiibo
