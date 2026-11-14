@@ -1,7 +1,7 @@
 name: Release
 
-# Started by hand (Actions → Release → Run workflow) so that no release is ever
-# built with a throwaway key: the signing secrets are required.
+# Started by hand (Actions → Release → Run workflow). The APK is only built with the project key
+# (ANDROID_KEYSTORE_* secrets); without them it is left out of the draft and attached by hand.
 on:
   workflow_dispatch:
     inputs:
@@ -28,21 +28,27 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - name: Restore the signing key
+        id: key
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::Add the ANDROID_KEYSTORE_* secrets: releases must be signed with the project key."
-            exit 1
+            echo "::warning::No ANDROID_KEYSTORE_* secrets: the APK is left out, attach one signed with the project key."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "$KEYSTORE_BASE64" | base64 --decode > release.jks
           echo "OPENGAMEPAD_KEYSTORE=release.jks" >> "$GITHUB_ENV"
-      - run: chmod +x gradlew
-      - run: ./gradlew testDebugUnitTest assembleRelease
+      - if: steps.key.outputs.skip != '1'
+        run: chmod +x gradlew
+      - if: steps.key.outputs.skip != '1'
+        run: ./gradlew testDebugUnitTest assembleRelease
         env:
           OPENGAMEPAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           OPENGAMEPAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           OPENGAMEPAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      - run: cp app/build/outputs/apk/release/app-release.apk "OpenGamepad-${{ inputs.tag }}.apk"
-      - uses: actions/upload-artifact@v4
+      - if: steps.key.outputs.skip != '1'
+        run: cp app/build/outputs/apk/release/app-release.apk "OpenGamepad-${{ inputs.tag }}.apk"
+      - if: steps.key.outputs.skip != '1'
+        uses: actions/upload-artifact@v4
         with:
           name: apk
           path: android/OpenGamepad-*.apk
@@ -131,10 +137,14 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Release notes from this version's CHANGELOG section
+        env:
+          TAG: ${{ inputs.tag }}
+        run: awk -v v="${TAG#v}" '/^## /{ if (f) exit; f = index($0, v) > 0; next } f' CHANGELOG.md > notes.md
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
           target_commitish: ${{ github.sha }}
           draft: true
           files: dist/*
-          body_path: CHANGELOG.md
+          body_path: notes.md
