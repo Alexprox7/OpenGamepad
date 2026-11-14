@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0 – unreleased
+## 1.2.0 – 2026-11-14
 
 ### Android app
 - **New look**: dark anthracite theme by default and an *OLED black* theme in *Settings → Appearance*;
@@ -20,6 +20,9 @@
 ### Fixes
 - Turning on the DSU server crashed the app, and it kept crashing at every launch while the option stayed on
   (it bound to port -1). Present since 1.1.0.
+
+### iOS app
+- Same dark and OLED black themes as the Android app, and the same five languages.
 
 ### Companion
 - Windows window restyled with the app's palette and a dark title bar; colours in the Linux terminal.
