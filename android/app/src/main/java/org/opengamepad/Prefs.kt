@@ -54,7 +54,19 @@ class Prefs(context: Context) {
         get() = prefs.getBoolean(KEY_RUMBLE, true)
         set(value) = prefs.edit().putBoolean(KEY_RUMBLE, value).apply()
 
+    var orientation: ScreenOrientation
+        get() = runCatching { ScreenOrientation.valueOf(prefs.getString(KEY_ORIENTATION, null)!!) }
+            .getOrDefault(ScreenOrientation.LANDSCAPE)
+        set(value) = prefs.edit().putString(KEY_ORIENTATION, value.name).apply()
+
+    /** The sensor's centring hint was shown once. */
+    var motionHintShown: Boolean
+        get() = prefs.getBoolean(KEY_MOTION_HINT, false)
+        set(value) = prefs.edit().putBoolean(KEY_MOTION_HINT, value).apply()
+
     private companion object {
+        const val KEY_ORIENTATION = "orientation"
+        const val KEY_MOTION_HINT = "motion_hint"
         const val KEY_RUMBLE = "rumble"
         const val KEY_MOTION = "motion"
         const val KEY_ORIGINAL_CLASS = "original_device_class"
@@ -65,4 +77,12 @@ class Prefs(context: Context) {
         const val KEY_LAST_TARGET = "last_target"
         const val KEY_SAVER_MODE = "saver_mode"
     }
+}
+
+/** Screen orientation of the app. [LANDSCAPE]: cameras on the left, USB-C on the right. */
+enum class ScreenOrientation(val android: Int) {
+    LANDSCAPE(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE),
+    REVERSE(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE),
+    /** Turns with the phone only when Android's auto-rotate is on. */
+    SYSTEM(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE),
 }

@@ -53,6 +53,8 @@ fun PadButton(
     shape: Shape = CircleShape,
     color: Color = Color.White,
     fontSize: Int = 18,
+    /** On/off buttons: blue border and fill while on (emoji labels cannot change colour). */
+    selected: Boolean = false,
 ) {
     val view = LocalView.current
     val callback by rememberUpdatedState(onChange)
@@ -60,8 +62,8 @@ fun PadButton(
     Box(
         modifier
             .clip(shape)
-            .background(if (pressed) SurfacePressed else Surface)
-            .border(1.dp, Outline, shape)
+            .background(if (pressed) SurfacePressed else if (selected) Accent.copy(alpha = 0.22f) else Surface)
+            .border(if (selected) 2.dp else 1.dp, if (selected) Accent else Outline, shape)
             .pointerInput(Unit) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)

@@ -97,6 +97,12 @@ fun MotionCard(motion: MotionController) {
                             label = { Text("🎩 Assi Cappy") },
                         )
                     }
+                    if (s.axes == AxisPreset.KART) {
+                        Setting("Sensibilità sterzo", "×%.1f · %d° per 90°".format(s.kartGain, (90 / s.kartGain).roundToInt()),
+                            s.kartGain, 1f..4f) { v -> set { it.copy(kartGain = (v * 4).roundToInt() / 4f) } }
+                    }
+                    Text("◎ sul controller: tieni il telefono nella posizione di gioco e toccalo per impostare la posizione neutra.",
+                        color = Faint, fontSize = 12.sp)
                     if (s.gyroMode == GyroMode.SHAKE) {
                         Text("Agita il telefono come un Joy-Con (es. lancio del cappello in Mario Odyssey): il gioco lo legge dal sensore, la visuale non si muove.",
                             color = Faint, fontSize = 12.sp)

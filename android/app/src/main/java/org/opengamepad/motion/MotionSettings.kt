@@ -46,6 +46,8 @@ data class MotionSettings(
     /** [GyroMode.SHAKE]: factor applied to the phone's linear acceleration. */
     val shakeGain: Float = 2.5f,
     val axes: AxisPreset = AxisPreset.KART,
+    /** [AxisPreset.KART]: rotation multiplier, so a 45° turn of the phone steers like 90° (2×). */
+    val kartGain: Float = 2f,
     /** DSU (cemuhook) server for PC emulators on UDP [DSU_PORT]. */
     val dsu: Boolean = false,
 ) {
@@ -67,6 +69,7 @@ data class MotionSettings(
         .put("gyroMode", gyroMode.name)
         .put("shakeGain", shakeGain.toDouble())
         .put("axes", axes.name)
+        .put("kartGain", kartGain.toDouble())
         .put("dsu", dsu)
         .toString()
 
@@ -95,6 +98,7 @@ data class MotionSettings(
                     gyroMode = runCatching { GyroMode.valueOf(o.optString("gyroMode")) }.getOrDefault(d.gyroMode),
                     shakeGain = o.optDouble("shakeGain", d.shakeGain.toDouble()).toFloat().coerceIn(1f, 5f),
                     axes = runCatching { AxisPreset.valueOf(o.optString("axes")) }.getOrDefault(d.axes),
+                    kartGain = o.optDouble("kartGain", d.kartGain.toDouble()).toFloat().coerceIn(1f, 4f),
                     dsu = o.optBoolean("dsu", d.dsu),
                 )
             }.getOrDefault(MotionSettings())

@@ -70,6 +70,8 @@ fun ConnectScreen(
     onTryLayout: () -> Unit,
     onMacros: () -> Unit,
     onSaverMode: (SaverMode) -> Unit,
+    orientation: org.opengamepad.ScreenOrientation = org.opengamepad.ScreenOrientation.LANDSCAPE,
+    onOrientation: (org.opengamepad.ScreenOrientation) -> Unit = {},
     onShizukuPermission: () -> Unit,
     bluetooth: BluetoothPanel,
     motion: (@Composable () -> Unit)? = null,
@@ -161,6 +163,16 @@ fun ConnectScreen(
 
         // Screen saver
         Card("🌙", "Risparmio schermo", "☾ o Volume giù per attivare · Volume su per uscire", Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Orientamento", color = Muted, fontSize = 13.sp)
+                for ((value, label) in listOf(
+                    org.opengamepad.ScreenOrientation.LANDSCAPE to "Orizzontale (fotocamere a sinistra)",
+                    org.opengamepad.ScreenOrientation.REVERSE to "Orizzontale capovolto",
+                    org.opengamepad.ScreenOrientation.SYSTEM to "Segui la rotazione di Android",
+                )) {
+                    FilterChip(selected = orientation == value, onClick = { onOrientation(value) }, label = { Text(label) })
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FilterChip(
                     selected = saverMode == SaverMode.BLACK,

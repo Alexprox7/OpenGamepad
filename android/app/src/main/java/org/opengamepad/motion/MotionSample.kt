@@ -40,6 +40,9 @@ data class MotionSample(
             .putShort(clamp16(gyroZ * 10f))
             .array()
 
+    /** Rotation multiplied by [gain]: [AxisPreset.KART] steering sensitivity. */
+    fun scaledGyro(gain: Float) = copy(gyroX = gyroX * gain, gyroY = gyroY * gain, gyroZ = gyroZ * gain)
+
     /** Acceleration x and y flipped: [AxisPreset.CAPPY]. */
     fun flippedAccelXY() = copy(accelX = -accelX, accelY = -accelY)
 

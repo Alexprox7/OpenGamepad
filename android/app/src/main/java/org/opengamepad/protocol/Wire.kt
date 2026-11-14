@@ -29,7 +29,8 @@ object Wire {
     const val TYPE_AMIIBO_ACTIVATE = 20
     const val TYPE_AMIIBO_STATUS = 21
     const val TYPE_AMIIBO_CLEAR = 22
-    // 23 is reserved.
+    /** Motion sensor: the controller's current position becomes neutral (angle reset). */
+    const val TYPE_MOTION_RECENTER = 23
 
     /** Appended to hello and reply when both sides are OpenGamepad. */
     val EXTENSION_MAGIC = "OGP".toByteArray(Charsets.US_ASCII)

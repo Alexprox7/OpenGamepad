@@ -87,25 +87,25 @@ fun ControllerScreen(
                 // Tilt steering on/off, and re-centre while it is on.
                 if (onSteering != null) {
                     PadButton("⎈", { if (it) onSteering() }, Modifier.size(44.dp), fontSize = 20,
-                        color = if (steering) Accent else Color.White)
-                    if (steering) PadButton("◎", { if (it) onRecenter() }, Modifier.size(44.dp), fontSize = 18, color = Accent)
+                        color = if (steering) Accent else Color.White, selected = steering)
                 }
                 if (onMotionSensor != null) {
                     PadButton("⟲", { if (it) onMotionSensor() }, Modifier.size(44.dp), fontSize = 20,
-                        color = if (motionSensor) Accent else Color.White)
+                        color = if (motionSensor) Accent else Color.White, selected = motionSensor)
                 }
                 // Motion axes per game: kart for Mario Kart, top hat (Cappy) for Super Mario Odyssey.
                 if (axisPreset != null) {
                     for ((preset, icon) in listOf(org.opengamepad.motion.AxisPreset.KART to "🏎",
                         org.opengamepad.motion.AxisPreset.CAPPY to "🎩")) {
                         PadButton(icon, { if (it) onAxisPreset(preset) }, Modifier.size(44.dp), fontSize = 18,
-                            color = if (axisPreset == preset) Accent else Color(0xFF5F6673))
+                            selected = axisPreset == preset)
                     }
                 }
                 if (onRumble != null) {
-                    PadButton("📳", { if (it) onRumble() }, Modifier.size(44.dp), fontSize = 16,
-                        color = if (rumble) Accent else Color(0xFF5F6673))
+                    PadButton("📳", { if (it) onRumble() }, Modifier.size(44.dp), fontSize = 16, selected = rumble)
                 }
+                // Centre: the current position becomes neutral (tilt steering or motion sensor).
+                if (steering || motionSensor) PadButton("◎", { if (it) onRecenter() }, Modifier.size(44.dp), fontSize = 18, color = Accent)
                 if (onAmiibo != null) PadButton("NFC", { if (it) onAmiibo() }, Modifier.size(44.dp), fontSize = 12)
             }
             Text(status, color = Color(0xFF8A91A0), fontSize = 12.sp)

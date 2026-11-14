@@ -295,4 +295,12 @@ class MotionTest {
         val flipped = MotionSample(1, 0.1f, 0.2f, 0.3f, 4f, 5f, 6f).flippedAccelXY()
         assertEquals(MotionSample(1, -0.1f, -0.2f, 0.3f, 4f, 5f, 6f), flipped)
     }
+
+    @Test
+    fun kartGainScalesRotationOnly() {
+        assertEquals(2f, MotionSettings().kartGain)
+        assertEquals(4f, MotionSettings.parse("""{"kartGain":9}""").kartGain)
+        val scaled = MotionSample(1, 0.1f, 0.2f, 0.3f, 4f, 5f, 6f).scaledGyro(2f)
+        assertEquals(MotionSample(1, 0.1f, 0.2f, 0.3f, 8f, 10f, 12f), scaled)
+    }
 }

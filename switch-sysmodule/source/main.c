@@ -40,6 +40,7 @@
 #define TYPE_STATE      1
 #define TYPE_MOTION     17  // OpenGamepad extension: u32 µs, i16 accel mg ×3, i16 gyro 0.1°/s ×3
 #define MOTION_SIZE     16
+#define TYPE_MOTION_RECENTER 23 // OpenGamepad extension (TCP): current position becomes neutral
 #define OS_SWITCH       4
 #define SECOND_NS       1000000000ULL
 #define CLIENT_TIMEOUT_NS (10 * SECOND_NS)
@@ -426,6 +427,12 @@ static void handle_message(Client *c, const u8 *msg, size_t len) {
         apply_state(c, payload, false);
     } else if (type == TYPE_MOTION && size >= MOTION_SIZE && c->greeted) {
         apply_motion(c, payload);
+    } else if (type == TYPE_MOTION_RECENTER && c->greeted) {
+        // The angle is integrated from whatever position the phone had when the controller was
+        // created; games read it as the controller's orientation. "◎" makes the current one neutral.
+        c->state.six_axis_sensor_angle = (HidVector){ 0.0f, 0.0f, 0.0f };
+        c->dirty = true;
+        log_line("movimento: posizione neutra impostata da %s", inet_ntoa(c->addr));
     } else if (type >= TYPE_AMIIBO_LIST_REQUEST && type <= TYPE_AMIIBO_CLEAR && c->greeted) {
         amiibo_handle(c->fd, type, payload, size);
     }

@@ -56,6 +56,7 @@ import org.opengamepad.net.ConnectionStatus
 import org.opengamepad.net.WifiConnection
 import org.opengamepad.protocol.Buttons
 import org.opengamepad.protocol.Feedback
+import org.opengamepad.protocol.Wire
 import org.opengamepad.screen.SaverState
 import org.opengamepad.screen.ScreenSaver
 import org.opengamepad.screen.ShizukuScreen
@@ -85,6 +86,7 @@ class MainActivity : ComponentActivity() {
 
     private var showPad by mutableStateOf(false)
     private var rumbleOn by mutableStateOf(true)
+    private var orientation by mutableStateOf(ScreenOrientation.LANDSCAPE)
     private var showMacros by mutableStateOf(false)
     private var showJson by mutableStateOf(false)
     private var foundHosts by mutableStateOf(emptyList<org.opengamepad.net.FoundHost>())
@@ -195,7 +197,8 @@ class MainActivity : ComponentActivity() {
             sample?.let {
                 // The axis preset only concerns the Switch sysmodule (the Bluetooth Pro Controller
                 // and DSU have their own conversions).
-                connection.sendMotion(if (motion.settings.value.axes == AxisPreset.CAPPY) it.flippedAccelXY() else it)
+                val s = motion.settings.value
+                connection.sendMotion(if (s.axes == AxisPreset.CAPPY) it.flippedAccelXY() else it.scaledGyro(s.kartGain))
             }
             bluetooth.sendMotion(sample)
         }
@@ -210,6 +213,8 @@ class MainActivity : ComponentActivity() {
 
         // The screen stays on only on the controller; elsewhere the phone locks as usual.
         rumbleOn = prefs.rumble
+        orientation = prefs.orientation
+        requestedOrientation = orientation.android
         lifecycleScope.launch {
             snapshotFlow { showPad }.collect { pad ->
                 if (pad) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -341,9 +346,19 @@ class MainActivity : ComponentActivity() {
                     onRadialBack = macros::radialBack,
                     steering = motionSettings.steering && motion.hasTilt,
                     onSteering = if (motion.hasTilt) ({ motion.update { it.copy(steering = !it.steering) } }) else null,
-                    onRecenter = motion::recenter,
+                    onRecenter = {
+                        // Sensor: the console takes the current position as neutral; steering: the app does.
+                        if (motionSettings.gyro) connection.sendControl(Wire.TYPE_MOTION_RECENTER, ByteArray(0))
+                        else motion.recenter()
+                    },
                     motionSensor = motionSettings.gyro,
-                    onMotionSensor = if (motion.hasGyro) ({ motion.update { it.copy(gyro = !it.gyro) } }) else null,
+                    onMotionSensor = if (motion.hasGyro) ({
+                        motion.update { it.copy(gyro = !it.gyro) }
+                        if (motion.settings.value.gyro && !prefs.motionHintShown) {
+                            prefs.motionHintShown = true
+                            toast("Sensore attivo: tieni il telefono nella posizione di gioco e tocca ◎ per impostare la posizione neutra")
+                        }
+                    }) else null,
                     axisPreset = motionSettings.axes.takeIf { motionSettings.gyro },
                     onAxisPreset = { preset -> motion.update { it.copy(axes = preset) } },
                     rumble = rumbleOn,
@@ -381,6 +396,12 @@ class MainActivity : ComponentActivity() {
                     onTryLayout = { showPad = true },
                     onMacros = { showMacros = true },
                     onSaverMode = { saverMode = it; prefs.saverMode = it },
+                    orientation = orientation,
+                    onOrientation = {
+                        orientation = it
+                        prefs.orientation = it
+                        requestedOrientation = it.android
+                    },
                     onShizukuPermission = {
                         shizuku.requestPermission { refreshShizuku() }
                     },
