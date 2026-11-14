@@ -36,6 +36,8 @@
 - **Physical controller passthrough** – plug a controller into the phone (e.g. GameSir G8 Galileo):
   its input is merged with the touch controls and sent to the PC.
 - **Rumble and player index** forwarded from the game to the phone.
+- **Landscape or vertical** – fixed landscape, reversed, Android's auto-rotate, or a Game Boy-style
+  vertical layout (*Orientamento* in the app).
 - **Pitch‑black interface** – controls are thin outlines on pure black, so OLED pixels stay off.
 - **Screen power saving while you play**
   - *OLED black*: black layer + minimum brightness, touch controls stay active.

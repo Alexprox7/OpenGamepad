@@ -36,6 +36,8 @@
 - **Controller fisico** – collega un controller al telefono (es. GameSir G8 Galileo): i suoi input
   vengono uniti ai comandi touch e inviati al PC.
 - **Vibrazione e numero giocatore** inoltrati dal gioco al telefono.
+- **Orizzontale o verticale** – orizzontale fisso, invertito, rotazione automatica di Android oppure un
+  layout verticale stile Game Boy (*Orientamento* nell'app).
 - **Interfaccia nero assoluto** – i comandi sono contorni sottili su nero puro, così i pixel OLED restano spenti.
 - **Risparmio schermo mentre giochi**
   - *Nero OLED*: livello nero + luminosità minima, i comandi touch restano attivi.

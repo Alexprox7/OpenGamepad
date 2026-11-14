@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 – unreleased
+## 1.1.0 – 2026-11-14
 
 ### New hosts
 - **Linux companion**: virtual Xbox 360 controller (uinput, same identity as `xpad`) with rumble,
@@ -31,6 +31,10 @@
 - **Amiibo for the Switch** (needs emuiibo): an NFC button and a mappable *⚡ amiibo* wheel list the dumps
   imported in the app and the virtual amiibo on the console; the pick goes on emuiibo's virtual reader.
   No amiibo files are included.
+- On the Switch, 🏎 and 🎩 pick the motion axes per game (Mario Kart 8 Deluxe / Super Mario Odyssey), with a
+  steering sensitivity slider; ◎ re-centres the motion sensor; 📳 turns rumble on the phone on or off.
+- **Orientation** setting: fixed landscape, reversed, follow Android's auto-rotate, or a **vertical
+  Game Boy-style layout**. The screen sleeps normally outside the controller screen.
 
 ### Companion
 - Code split into a shared core and per-OS backends (`pc-companion/Core`, `Windows`, `Linux`).
