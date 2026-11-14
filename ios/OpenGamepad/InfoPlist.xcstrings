@@ -1,0 +1,41 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSLocalNetworkUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenGamepad looks for the companion and the Switch sysmodule on your Wi-Fi network and sends the controller input to them."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenGamepad cerca il companion e il sysmodule Switch sulla rete Wi-Fi e invia loro l'input del controller."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenGamepad は Wi-Fi ネットワーク上でコンパニオンと Switch の sysmodule を探し、コントローラーの入力を送信します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenGamepad 会在 Wi-Fi 网络中查找伴侣程序和 Switch 系统模块，并向它们发送控制器输入。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenGamepad 會在 Wi-Fi 網路中尋找伴侶程式和 Switch 系統模組，並向它們傳送控制器輸入。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

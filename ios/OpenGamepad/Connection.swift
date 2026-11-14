@@ -85,7 +85,7 @@ private final class Link: @unchecked Sendable {
     }
 
     func start() {
-        queue.async { self.attempt(hostIndex: 0, lastError: "nessuna risposta") }
+        queue.async { self.attempt(hostIndex: 0, lastError: String(localized: "no response")) }
     }
 
     func update(_ newState: ControllerState) {
@@ -117,7 +117,7 @@ private final class Link: @unchecked Sendable {
     private func attempt(hostIndex: Int, lastError: String) {
         guard !stopped else { return }
         guard hostIndex < target.hosts.count, let port = NWEndpoint.Port(rawValue: target.port) else {
-            onStatus?(.failed("Impossibile collegarsi a \(target.description): \(lastError)"))
+            onStatus?(.failed(String(localized: "Could not connect to \(target.description): \(lastError)")))
             return
         }
         let host = target.hosts[hostIndex]
@@ -133,7 +133,7 @@ private final class Link: @unchecked Sendable {
             connection.cancel()
             self.attempt(hostIndex: hostIndex + 1, lastError: reason)
         }
-        queue.asyncAfter(deadline: .now() + Self.handshakeTimeout) { fail("tempo scaduto") }
+        queue.asyncAfter(deadline: .now() + Self.handshakeTimeout) { fail(String(localized: "timed out")) }
 
         connection.stateUpdateHandler = { [weak self] newState in
             guard let self else { return }
@@ -143,13 +143,13 @@ private final class Link: @unchecked Sendable {
                 connection.send(content: Wire.hello(deviceId: Wire.deviceId), completion: .contentProcessed { _ in })
                 self.awaitReply(connection) { reply in
                     guard !settled else { return }
-                    guard let reply else { return fail("risposta non valida") }
+                    guard let reply else { return fail(String(localized: "invalid handshake reply")) }
                     settled = true
                     self.onConnected(connection, host: host, reply: reply)
                 }
             case .failed(let error), .waiting(let error):
                 if settled && self.connected && connection === self.tcp {
-                    self.lost("Connessione persa (\(error.localizedDescription))")
+                    self.lost(String(localized: "Connection lost: \(error.localizedDescription)"))
                 } else {
                     fail(error.localizedDescription)
                 }
@@ -171,7 +171,7 @@ private final class Link: @unchecked Sendable {
     }
 
     private func onConnected(_ connection: NWConnection, host: String, reply: [UInt8]) {
-        guard reply.count >= 3 else { return lost("risposta non valida") }
+        guard reply.count >= 3 else { return lost(String(localized: "invalid handshake reply")) }
         let udpPort = UInt16(reply[0]) | UInt16(reply[1]) << 8
         let hostName = Wire.hostName(reply[2])
         if udpPort != 0, let port = NWEndpoint.Port(rawValue: udpPort) {
@@ -194,7 +194,7 @@ private final class Link: @unchecked Sendable {
     private func receiveLoop(_ connection: NWConnection) {
         readMessage(connection) { [weak self] message in
             guard let self, connection === self.tcp else { return }
-            guard let message else { return self.lost("Connessione chiusa dall'host") }
+            guard let message else { return self.lost(String(localized: "Connection closed by the host")) }
             self.handle(message)
             self.receiveLoop(connection)
         }

@@ -1,22 +1,23 @@
 import SwiftUI
 import UIKit
 
-private let outline = Color.white.opacity(0.55)
-
 struct ContentView: View {
     @EnvironmentObject private var connection: GamepadConnection
     @EnvironmentObject private var input: InputModel
     @State private var haptics = UIImpactFeedbackGenerator(style: .heavy)
+    @AppStorage(Palette.oledKey) private var oled = false
 
     var body: some View {
+        let palette: Palette = oled ? .oled : .dark
         ZStack {
-            Color.black.ignoresSafeArea()
+            palette.background.ignoresSafeArea()
             if connection.isConnected {
                 ControllerView()
             } else {
                 ConnectView()
             }
         }
+        .environment(\.palette, palette)
         .onAppear {
             input.onChange = { [weak connection] state in connection?.send(state) }
             connection.onFeedback = { feedback in
@@ -36,32 +37,35 @@ struct ContentView: View {
 struct ConnectView: View {
     @EnvironmentObject private var connection: GamepadConnection
     @EnvironmentObject private var input: InputModel
+    @Environment(\.palette) private var palette
     @AppStorage("lastTarget") private var address = ""
+    @AppStorage(Palette.oledKey) private var oled = false
     @State private var found: [FoundHost] = []
     @State private var searching = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("OpenGamepad").font(.largeTitle.bold())
-                Text("Inquadra il codice QR del companion con la Fotocamera, cerca nella rete o scrivi l'indirizzo.")
-                    .foregroundColor(.secondary)
+                Text(verbatim: "OpenGamepad").font(.largeTitle.bold())
+                Text("Scan the companion's QR code with the Camera, search the network or type the address.")
+                    .foregroundColor(palette.muted)
 
                 HStack {
-                    TextField("IP:porta (es. 192.168.1.10:47800)", text: $address)
+                    TextField("IP:port (e.g. 192.168.1.10:47800)", text: $address)
                         .keyboardType(.numbersAndPunctuation)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .padding(12)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(outline))
-                    Button("Connetti") {
+                        .background(RoundedRectangle(cornerRadius: 12).fill(palette.surfaceHigh))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(palette.outline))
+                    Button("Connect") {
                         if let target = ConnectTarget.parse(address) { connection.connect(target) }
                     }
                     .buttonStyle(OutlineButtonStyle())
                     .disabled(ConnectTarget.parse(address) == nil)
                 }
 
-                Button(searching ? "Ricerca in corso…" : "Cerca nella rete") {
+                Button(searching ? "Searching…" : "Search the network") {
                     searching = true
                     Task {
                         found = await Discovery.search()
@@ -80,51 +84,66 @@ struct ConnectView: View {
                             Image(systemName: host.name == "Nintendo Switch" ? "gamecontroller" : "desktopcomputer")
                             VStack(alignment: .leading) {
                                 Text(host.name).bold()
-                                Text("\(host.host):\(host.port)").font(.caption).foregroundColor(.secondary)
+                                Text(verbatim: "\(host.host):\(host.port)").font(.caption).foregroundColor(palette.muted)
                             }
                             Spacer()
                         }
                         .padding(12)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(outline))
+                        .background(RoundedRectangle(cornerRadius: 12).fill(palette.surface))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(palette.outline))
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(palette.text)
                 }
                 if !searching && found.isEmpty {
-                    Text("Serve il companion (Windows, Linux) o il sysmodule Switch sulla stessa rete Wi‑Fi.")
-                        .font(.footnote).foregroundColor(.secondary)
+                    Text("Needs the companion (Windows, Linux) or the Switch sysmodule on the same Wi‑Fi network.")
+                        .font(.footnote).foregroundColor(palette.muted)
                 }
 
                 statusText
 
                 if let name = input.controllerName {
-                    Label("Controller collegato: \(name)", systemImage: "gamecontroller.fill")
-                        .foregroundColor(.green)
+                    Label("Controller connected: \(name)", systemImage: "gamecontroller.fill")
+                        .foregroundColor(Palette.success)
                 }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Appearance").font(.headline)
+                    Picker("Appearance", selection: $oled) {
+                        Text("Dark").tag(false)
+                        Text("OLED black").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    Text("OLED black uses pure black: on OLED screens black pixels stay off.")
+                        .font(.footnote).foregroundColor(palette.muted)
+                }
+                .padding(.top, 8)
             }
             .padding(24)
             .frame(maxWidth: 640, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .foregroundColor(.white)
+        .foregroundColor(palette.text)
     }
 
     @ViewBuilder private var statusText: some View {
         switch connection.status {
-        case .connecting(let target): Text("Connessione a \(target)…").foregroundColor(.secondary)
-        case .failed(let reason): Text(reason).foregroundColor(.red)
+        case .connecting(let target): Text("Connecting to \(target)…").foregroundColor(palette.muted)
+        case .failed(let reason): Text(reason).foregroundColor(Palette.danger)
         default: EmptyView()
         }
     }
 }
 
 struct OutlineButtonStyle: ButtonStyle {
+    @Environment(\.palette) private var palette
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .foregroundColor(.white)
-            .background(Capsule().fill(Color.white.opacity(configuration.isPressed ? 0.2 : 0)))
-            .overlay(Capsule().stroke(outline))
+            .foregroundColor(palette.text)
+            .background(Capsule().fill(configuration.isPressed ? palette.pressed : palette.surfaceHigh))
+            .overlay(Capsule().stroke(palette.outline))
     }
 }
 
@@ -133,6 +152,7 @@ struct OutlineButtonStyle: ButtonStyle {
 struct ControllerView: View {
     @EnvironmentObject private var connection: GamepadConnection
     @EnvironmentObject private var input: InputModel
+    @Environment(\.palette) private var palette
 
     var body: some View {
         let nintendo = connection.isSwitch
@@ -150,13 +170,13 @@ struct ControllerView: View {
             }
             Spacer()
             VStack(spacing: 14) {
-                Text(statusLine).font(.caption).foregroundColor(.secondary).multilineTextAlignment(.center)
+                Text(statusLine).font(.caption).foregroundColor(palette.muted).multilineTextAlignment(.center)
                 HStack(spacing: 14) {
                     PadButton(label: nintendo ? "−" : "⧉", width: 44, height: 44) { input.setButton(Buttons.back, pressed: $0) }
                     PadButton(label: "⌂", width: 44, height: 44) { input.setButton(Buttons.guide, pressed: $0) }
                     PadButton(label: nintendo ? "+" : "☰", width: 44, height: 44) { input.setButton(Buttons.start, pressed: $0) }
                 }
-                Button("Disconnetti") { connection.disconnect() }
+                Button("Disconnect") { connection.disconnect() }
                     .buttonStyle(OutlineButtonStyle())
                     .font(.caption)
             }
@@ -175,7 +195,7 @@ struct ControllerView: View {
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 12)
-        .foregroundColor(.white)
+        .foregroundColor(palette.text)
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
     }
@@ -183,7 +203,7 @@ struct ControllerView: View {
     private var statusLine: String {
         guard case .connected(let target, let host) = connection.status else { return "" }
         var line = "\(target) (\(host))"
-        if connection.player > 0 { line += " · giocatore \(connection.player)" }
+        if connection.player > 0 { line += " · " + String(localized: "player \(connection.player)") }
         if let name = input.controllerName { line += "\n\(name)" }
         return line
     }
@@ -197,12 +217,12 @@ struct FaceButtons: View {
     var body: some View {
         let size: CGFloat = 56
         VStack(spacing: 4) {
-            PadButton(label: nintendo ? "X" : "Y", color: Color(red: 0.95, green: 0.79, blue: 0.30), width: size, height: size) { input.setButton(Buttons.y, pressed: $0) }
+            PadButton(label: nintendo ? "X" : "Y", color: Palette.faceY, width: size, height: size) { input.setButton(Buttons.y, pressed: $0) }
             HStack(spacing: size) {
-                PadButton(label: nintendo ? "Y" : "X", color: Color(red: 0.34, green: 0.66, blue: 0.96), width: size, height: size) { input.setButton(Buttons.x, pressed: $0) }
-                PadButton(label: nintendo ? "A" : "B", color: Color(red: 0.92, green: 0.34, blue: 0.34), width: size, height: size) { input.setButton(Buttons.b, pressed: $0) }
+                PadButton(label: nintendo ? "Y" : "X", color: Palette.faceX, width: size, height: size) { input.setButton(Buttons.x, pressed: $0) }
+                PadButton(label: nintendo ? "A" : "B", color: Palette.faceB, width: size, height: size) { input.setButton(Buttons.b, pressed: $0) }
             }
-            PadButton(label: nintendo ? "B" : "A", color: Color(red: 0.44, green: 0.81, blue: 0.59), width: size, height: size) { input.setButton(Buttons.a, pressed: $0) }
+            PadButton(label: nintendo ? "B" : "A", color: Palette.faceA, width: size, height: size) { input.setButton(Buttons.a, pressed: $0) }
         }
     }
 }
@@ -223,22 +243,28 @@ struct DPadView: View {
     }
 }
 
-/// Outline button that reports press and release (multi-touch: each button tracks its own finger).
+/// Button that reports press and release (multi-touch: each button tracks its own finger).
+/// Drawn like the Android one: theme surface, lit only while pressed; `color` tints the label.
 struct PadButton: View {
     let label: String
-    var color: Color = .white
+    var color: Color?
     var width: CGFloat
     var height: CGFloat
     var rounded = false
     let onChange: (Bool) -> Void
+    @Environment(\.palette) private var palette
     @State private var pressed = false
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: rounded ? 10 : min(width, height) / 2)
         shape
-            .fill(color.opacity(pressed ? 0.35 : 0))
-            .overlay(shape.stroke(color.opacity(0.8), lineWidth: 2))
-            .overlay(Text(label).font(.system(size: min(width, height) * 0.36, weight: .semibold)).foregroundColor(color))
+            .fill(pressed ? palette.pressed : palette.surface)
+            .overlay(shape.stroke(pressed ? palette.knob : palette.outline, lineWidth: 1))
+            .overlay(
+                Text(verbatim: label)
+                    .font(.system(size: min(width, height) * 0.36, weight: .semibold))
+                    .foregroundColor((color ?? palette.text).opacity(pressed ? 1 : 0.75))
+            )
             .frame(width: width, height: height)
             .contentShape(shape)
             .gesture(
@@ -261,15 +287,16 @@ struct PadButton: View {
 /// Analog stick: x and y in -1…1, y up positive.
 struct StickView: View {
     let onMove: (CGFloat, CGFloat) -> Void
+    @Environment(\.palette) private var palette
     @State private var offset: CGSize = .zero
     private let radius: CGFloat = 64
 
     var body: some View {
         ZStack {
-            Circle().stroke(outline, lineWidth: 2)
+            Circle().fill(palette.surface)
+            Circle().stroke(palette.outline, lineWidth: 2)
             Circle()
-                .fill(Color.white.opacity(0.18))
-                .overlay(Circle().stroke(Color.white.opacity(0.8), lineWidth: 2))
+                .fill(offset == .zero ? palette.knob : Palette.accent.opacity(0.85))
                 .frame(width: radius, height: radius)
                 .offset(offset)
         }
