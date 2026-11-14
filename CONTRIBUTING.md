@@ -59,10 +59,13 @@ be built locally (`./gradlew assembleRelease` with `keystore.properties`) and up
 
 ## Guidelines
 
-- Keep the interface **pitch black**: no filled surfaces, controls as thin outlines.
+- Take colours from the theme (`LocalPalette` in `ui/Theme.kt`), never hard-coded: every screen must
+  work in both the dark and the OLED black theme.
 - Anything that can turn the screen off must have a way back that does not depend on the app.
 - Changes to the wire protocol go together with an update of [docs/PROTOCOL.md](docs/PROTOCOL.md) and
   must stay compatible with existing companions, or be negotiated through the extension version.
 - Changing the Bluetooth HID descriptor forces users to pair again: avoid it unless necessary.
-- Translations: the UI strings are currently in Italian inside the Compose code; moving them to
-  `strings.xml` resources is a welcome contribution.
+- Texts: the app reads them with `str(R.string.…)` from `res/values/strings.xml` (English, the fallback)
+  and `values-it`, `values-b+zh+Hans`, `values-b+zh+Hant`, `values-ja`; add a key to every file. The
+  companions use `L.T(italian, english, simplified Chinese, traditional Chinese, Japanese)`. The Chinese
+  and Japanese texts have not been reviewed by native speakers yet: corrections are very welcome.

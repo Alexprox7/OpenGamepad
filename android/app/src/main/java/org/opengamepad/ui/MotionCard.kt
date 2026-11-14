@@ -1,5 +1,7 @@
 package org.opengamepad.ui
 
+import org.opengamepad.str
+import org.opengamepad.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -25,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,11 +37,11 @@ import org.opengamepad.motion.MotionSettings
 import org.opengamepad.protocol.Buttons
 import kotlin.math.roundToInt
 
-private val ShakeButtons = listOf(
+private val ShakeButtons get() = listOf(
     "A" to Buttons.A, "B" to Buttons.B, "X" to Buttons.X, "Y" to Buttons.Y,
     "LB" to Buttons.LEFT_SHOULDER, "RB" to Buttons.RIGHT_SHOULDER,
     "L3" to Buttons.LEFT_THUMB, "R3" to Buttons.RIGHT_THUMB,
-    "Su" to Buttons.DPAD_UP, "Giù" to Buttons.DPAD_DOWN,
+    str(R.string.dir_up) to Buttons.DPAD_UP, str(R.string.dir_down) to Buttons.DPAD_DOWN,
     "Back" to Buttons.BACK, "Start" to Buttons.START,
 )
 
@@ -55,12 +56,12 @@ fun MotionCard(motion: MotionController) {
 
     Card(
         "🧭",
-        "Movimento",
-        "Sterzo inclinando il telefono, scuotimento e giroscopio reale · tutto spento finché non lo attivi",
+        str(R.string.nav_motion),
+        str(R.string.motion_sub),
         Modifier.fillMaxWidth(),
     ) {
         if (!motion.hasTilt) {
-            Text("Questo telefono non ha sensori di movimento", color = Muted, fontSize = 13.sp)
+            Text(str(R.string.no_sensors), color = Muted, fontSize = 13.sp)
             return@Card
         }
         FlowRow(
@@ -72,93 +73,93 @@ fun MotionCard(motion: MotionController) {
             // Real gyro
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (!motion.hasGyro) {
-                    Text("Giroscopio non disponibile su questo telefono", color = Muted, fontSize = 13.sp)
+                    Text(str(R.string.no_gyro), color = Muted, fontSize = 13.sp)
                     return@Column
                 }
-                Toggle("Sensore di movimento (come Joy-Con)", s.gyro) { on -> set { it.copy(gyro = on) } }
-                Text("Il controller virtuale ha il sensore come un Joy-Con (sysmodule via Wi‑Fi, Pro Controller Bluetooth). Su PC/Xbox non ha effetto.",
+                Toggle(str(R.string.gyro_toggle), s.gyro) { on -> set { it.copy(gyro = on) } }
+                Text(str(R.string.gyro_note),
                     color = Faint, fontSize = 12.sp)
                 if (s.gyro) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FilterChip(
                             selected = s.gyroMode == GyroMode.SHAKE,
                             onClick = { set { it.copy(gyroMode = GyroMode.SHAKE) } },
-                            label = { Text("Solo scuotimento") },
+                            label = { Text(str(R.string.shake_only)) },
                         )
                         FilterChip(
                             selected = s.gyroMode == GyroMode.FULL,
                             onClick = { set { it.copy(gyroMode = GyroMode.FULL) } },
-                            label = { Text("Completo") },
+                            label = { Text(str(R.string.full)) },
                         )
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FilterChip(
                             selected = s.axes == AxisPreset.KART,
                             onClick = { set { it.copy(axes = AxisPreset.KART) } },
-                            label = { Text("🏎 Assi kart") },
+                            label = { Text(str(R.string.axes_kart)) },
                         )
                         FilterChip(
                             selected = s.axes == AxisPreset.CAPPY,
                             onClick = { set { it.copy(axes = AxisPreset.CAPPY) } },
-                            label = { Text("🎩 Assi Cappy") },
+                            label = { Text(str(R.string.axes_cappy)) },
                         )
                     }
                     if (s.axes == AxisPreset.KART) {
-                        Setting("Sensibilità sterzo", "×%.1f · %d° per 90°".format(s.kartGain, (90 / s.kartGain).roundToInt()),
+                        Setting(str(R.string.steer_sens), str(R.string.steer_sens_value, s.kartGain, (90 / s.kartGain).roundToInt()),
                             s.kartGain, 1f..4f) { v -> set { it.copy(kartGain = (v * 4).roundToInt() / 4f) } }
                     }
-                    Text("◎ sul controller: tieni il telefono nella posizione di gioco e toccalo per impostare la posizione neutra.",
+                    Text(str(R.string.recenter_note),
                         color = Faint, fontSize = 12.sp)
                     if (s.gyroMode == GyroMode.SHAKE) {
-                        Text("Agita il telefono come un Joy-Con (es. lancio del cappello in Mario Odyssey): il gioco lo legge dal sensore, la visuale non si muove.",
+                        Text(str(R.string.shake_note),
                             color = Faint, fontSize = 12.sp)
-                        Setting("Forza scossa", "×%.1f".format(s.shakeGain), s.shakeGain, 1f..5f) { v ->
+                        Setting(str(R.string.shake_strength), "×%.1f".format(s.shakeGain), s.shakeGain, 1f..5f) { v ->
                             set { it.copy(shakeGain = (v * 2).roundToInt() / 2f) }
                         }
                     } else {
-                        Text("Anche la rotazione del telefono: visuale e mira con il giroscopio, sterzo nei giochi che lo usano.",
+                        Text(str(R.string.full_note),
                             color = Faint, fontSize = 12.sp)
                     }
                 }
-                Toggle("Server DSU per emulatori", s.dsu) { on -> set { it.copy(dsu = on) } }
-                Text("Cemu, Ryujinx, Dolphin, Citra… ricevono il movimento via Wi‑Fi.", color = Faint, fontSize = 12.sp)
+                Toggle(str(R.string.dsu_toggle), s.dsu) { on -> set { it.copy(dsu = on) } }
+                Text(str(R.string.dsu_note), color = Faint, fontSize = 12.sp)
                 if (s.dsu) {
-                    val addresses = motion.localAddresses().joinToString(" · ").ifEmpty { "nessuna rete" }
-                    Text("Nell'emulatore: server $addresses, porta ${MotionSettings.DSU_PORT}", color = Muted, fontSize = 13.sp)
+                    val addresses = motion.localAddresses().joinToString(" · ").ifEmpty { str(R.string.no_network) }
+                    Text(str(R.string.dsu_where, addresses, MotionSettings.DSU_PORT), color = Muted, fontSize = 13.sp)
                     if (dsuStatus.isNotEmpty()) Text(dsuStatus, color = Muted, fontSize = 12.sp)
                 }
             }
             // Tilt steering
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Toggle("Sterzo inclinando (stick)", s.steering) { on -> set { it.copy(steering = on) } }
-                Text("Ruota il telefono come un volante: muove lo stick sinistro, anche su PC. Spegne il sensore di movimento.",
+                Toggle(str(R.string.steer_toggle), s.steering) { on -> set { it.copy(steering = on) } }
+                Text(str(R.string.steer_note),
                     color = Faint, fontSize = 12.sp)
                 if (s.steering) {
                     SteerBar(steer ?: 0f)
-                    Setting("Angolo massimo", "${s.maxAngle.roundToInt()}°", s.maxAngle, 10f..90f) { v ->
+                    Setting(str(R.string.max_angle), "${s.maxAngle.roundToInt()}°", s.maxAngle, 10f..90f) { v ->
                         set { it.copy(maxAngle = v.roundToInt().toFloat()) }
                     }
-                    Setting("Zona morta", "${s.deadZone.roundToInt()}°", s.deadZone, 0f..15f) { v ->
+                    Setting(str(R.string.dead_zone), "${s.deadZone.roundToInt()}°", s.deadZone, 0f..15f) { v ->
                         set { it.copy(deadZone = v.roundToInt().toFloat()) }
                     }
                     val curve = when {
-                        s.curve < 0.9f -> "rapida"
-                        s.curve > 1.1f -> "precisa al centro"
-                        else -> "lineare"
+                        s.curve < 0.9f -> str(R.string.curve_fast)
+                        s.curve > 1.1f -> str(R.string.curve_precise)
+                        else -> str(R.string.curve_linear)
                     }
-                    Setting("Curva", "%.1f · %s".format(s.curve, curve), s.curve, 0.5f..2.5f) { v ->
+                    Setting(str(R.string.curve), "%.1f · %s".format(s.curve, curve), s.curve, 0.5f..2.5f) { v ->
                         set { it.copy(curve = (v * 10).roundToInt() / 10f) }
                     }
-                    Toggle("Anche avanti/indietro (stick Y)", s.pitchY) { on -> set { it.copy(pitchY = on) } }
-                    OutlinedButton(onClick = motion::recenter) { Text("Centra") }
-                    Text("Centra: tieni il telefono in posizione di guida e tocca. Anche con ◎ sul controller.",
+                    Toggle(str(R.string.pitch), s.pitchY) { on -> set { it.copy(pitchY = on) } }
+                    OutlinedButton(onClick = motion::recenter) { Text(str(R.string.center)) }
+                    Text(str(R.string.center_note),
                         color = Faint, fontSize = 12.sp)
                 }
             }
             // Shake
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Toggle("Scuoti per premere", s.shake) { on -> set { it.copy(shake = on) } }
-                Text("Una scossa preme un tasto per un istante.", color = Faint, fontSize = 12.sp)
+                Toggle(str(R.string.shake_toggle), s.shake) { on -> set { it.copy(shake = on) } }
+                Text(str(R.string.shake_toggle_note), color = Faint, fontSize = 12.sp)
                 if (s.shake) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ShakeButtons.forEach { (label, mask) ->
@@ -169,7 +170,7 @@ fun MotionCard(motion: MotionController) {
                             )
                         }
                     }
-                    Setting("Sensibilità", "${(s.shakeSensitivity * 100).roundToInt()}%", s.shakeSensitivity, 0f..1f) { v ->
+                    Setting(str(R.string.sensitivity), "${(s.shakeSensitivity * 100).roundToInt()}%", s.shakeSensitivity, 0f..1f) { v ->
                         set { it.copy(shakeSensitivity = (v * 20).roundToInt() / 20f) }
                     }
                 }
@@ -182,7 +183,7 @@ fun MotionCard(motion: MotionController) {
 private fun Toggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Switch(checked = checked, onCheckedChange = onChange)
-        Text(label, color = Color.White, fontSize = 15.sp)
+        Text(label, color = Ink, fontSize = 15.sp)
     }
 }
 
@@ -197,7 +198,7 @@ private fun Setting(
     Column {
         Row {
             Text(label, color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
-            Text(value, color = Color.White, fontSize = 13.sp)
+            Text(value, color = Ink, fontSize = 13.sp)
         }
         Slider(value = current.coerceIn(range), onValueChange = onChange, valueRange = range)
     }
@@ -211,9 +212,9 @@ private fun SteerBar(value: Float) {
             .fillMaxWidth()
             .height(14.dp)
             .clip(RoundedCornerShape(7.dp))
-            .border(1.dp, Color(0xFF30343D), RoundedCornerShape(7.dp)),
+            .border(1.dp, LocalPalette.current.outline, RoundedCornerShape(7.dp)),
     ) {
-        Box(Modifier.align(Alignment.Center).width(1.dp).fillMaxHeight().background(Color(0xFF30343D)))
+        Box(Modifier.align(Alignment.Center).width(1.dp).fillMaxHeight().background(LocalPalette.current.outline))
         Layout(
             content = { Box(Modifier.width(10.dp).fillMaxHeight().background(Accent)) },
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),

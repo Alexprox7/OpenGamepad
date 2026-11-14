@@ -40,7 +40,7 @@ public sealed class CompanionServer : IDisposable
         }
         catch (SocketException e)
         {
-            Log.Write($"Ricerca LAN non disponibile: {e.Message}");
+            Log.Write(L.T($"Ricerca LAN non disponibile: {e.Message}", $"LAN search unavailable: {e.Message}", $"局域网搜索不可用：{e.Message}", $"區域網路搜尋無法使用：{e.Message}", $"LAN 検索は使えません：{e.Message}"));
             return;
         }
         using (udp)
@@ -92,7 +92,7 @@ public sealed class CompanionServer : IDisposable
                 Log.Write($"Disconnesso: {s.Describe()}");
                 SessionsChanged?.Invoke();
             };
-            Log.Write($"Connessione da {session.Remote}");
+            Log.Write(L.T($"Connessione da {session.Remote}", $"Connection from {session.Remote}", $"来自 {session.Remote} 的连接", $"來自 {session.Remote} 的連線", $"{session.Remote} から接続"));
             _ = session.RunAsync();
         }
     }

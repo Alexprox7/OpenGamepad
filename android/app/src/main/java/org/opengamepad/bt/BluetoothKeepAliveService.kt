@@ -1,5 +1,7 @@
 package org.opengamepad.bt
 
+import org.opengamepad.str
+import org.opengamepad.R
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -26,7 +28,7 @@ class BluetoothKeepAliveService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL, "Gamepad Bluetooth", NotificationManager.IMPORTANCE_LOW),
+            NotificationChannel(CHANNEL, str(R.string.bt_channel), NotificationManager.IMPORTANCE_LOW),
         )
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
@@ -34,7 +36,7 @@ class BluetoothKeepAliveService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentTitle("OpenGamepad")
-            .setContentText("Gamepad Bluetooth attivo")
+            .setContentText(str(R.string.bt_active))
             .setOngoing(true)
             .setContentIntent(open)
             .build()

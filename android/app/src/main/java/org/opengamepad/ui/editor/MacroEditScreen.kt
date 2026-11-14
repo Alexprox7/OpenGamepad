@@ -1,5 +1,19 @@
 package org.opengamepad.ui.editor
 
+import org.opengamepad.str
+import org.opengamepad.R
+import org.opengamepad.ui.Danger
+import org.opengamepad.ui.Ink
+import org.opengamepad.ui.KeyCaps
+import org.opengamepad.ui.LocalPalette
+import org.opengamepad.ui.Muted
+import org.opengamepad.ui.ScreenHeader
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +50,10 @@ import org.opengamepad.macro.Macro
 import org.opengamepad.macro.Trigger
 import org.opengamepad.protocol.ControllerState
 
-private val HOLD_OPTIONS = listOf(0L to "Subito", 300L to "0,3 s", 500L to "0,5 s", 1000L to "1 s")
+// Labels follow the language: "0,3 s" in Italian, "0.3 s" in English.
+private val HOLD_OPTIONS get() = listOf(0L, 300L, 500L, 1000L).map { ms ->
+    ms to if (ms == 0L) str(R.string.hold_now) else java.text.NumberFormat.getInstance().format(ms / 1000.0) + " s"
+}
 
 /** Edits one macro: input combination and resulting output (actions or radial menu). */
 @OptIn(ExperimentalLayoutApi::class)
@@ -80,40 +97,42 @@ fun MacroEditScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(LocalPalette.current.background)
+            .windowInsetsPadding(WindowInsets.displayCutout)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Modifica macro", color = Color.White, fontSize = 22.sp)
+        ScreenHeader(str(R.string.edit_macro), onBack = onCancel) {
             Button(
                 onClick = { onSave(macro) },
                 enabled = trigger.size > 0 && (macro.radial != null || macro.actions.isNotEmpty()),
-            ) { Text("Salva") }
-            OutlinedButton(onClick = onCancel) { Text("Annulla") }
-            onDelete?.let { TextButton(onClick = it) { Text("Elimina macro", color = Color(0xFFEB5757)) } }
+            ) { Text(str(R.string.save)) }
+            OutlinedButton(onClick = onCancel) { Text(str(R.string.cancel)) }
+            onDelete?.let { TextButton(onClick = it) { Text(str(R.string.delete_macro), color = Danger) } }
         }
         OutlinedTextField(
             value = macro.name,
             onValueChange = { macro = macro.copy(name = it) },
-            label = { Text("Nome") },
+            label = { Text(str(R.string.name)) },
             singleLine = true,
-            modifier = Modifier.width(320.dp),
+            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
         )
 
-        Text("INPUT · combinazione che attiva la macro", color = Muted, fontSize = 13.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(describeButtons(trigger.buttons, trigger.leftTrigger, trigger.rightTrigger), color = Color.White, fontSize = 18.sp)
+        org.opengamepad.ui.Card("🎮", str(R.string.combo), str(R.string.combo_sub), Modifier.fillMaxWidth()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.align(Alignment.CenterVertically)) {
+                KeyCaps(describeButtons(trigger.buttons, trigger.leftTrigger, trigger.rightTrigger))
+            }
             OutlinedButton(onClick = { recording = true }, enabled = !recording) {
-                Text(if (recording) "Premi la combinazione sul controller…" else "Registra dal controller")
+                Text(if (recording) str(R.string.recording) else str(R.string.record))
             }
         }
         ButtonChips(trigger.buttons, trigger.leftTrigger, trigger.rightTrigger) { m, lt, rt ->
             macro = macro.copy(trigger = trigger.copy(buttons = m, leftTrigger = lt, rightTrigger = rt))
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
-            Text("Tenere premuto:", color = Muted, modifier = Modifier.align(Alignment.CenterVertically))
+            Text(str(R.string.hold), color = Muted, modifier = Modifier.align(Alignment.CenterVertically))
             HOLD_OPTIONS.forEach { (ms, label) ->
                 FilterChip(
                     selected = trigger.holdMs == ms,
@@ -124,21 +143,22 @@ fun MacroEditScreen(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Switch(checked = trigger.consume, onCheckedChange = { macro = macro.copy(trigger = trigger.copy(consume = it)) })
-            Text("Non inviare al gioco i pulsanti della combinazione", color = Color.White)
+            Text(str(R.string.consume), color = Ink, modifier = Modifier.weight(1f, fill = false))
+        }
         }
 
-        Text("OUTPUT · cosa succede", color = Muted, fontSize = 13.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        org.opengamepad.ui.Card("⚡", str(R.string.action), str(R.string.action_sub), Modifier.fillMaxWidth()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = macro.radial == null,
                 onClick = { macro = macro.copy(radial = null) },
-                label = { Text("Sequenza di azioni") },
+                label = { Text(str(R.string.action_sequence)) },
             )
             FilterChip(
                 selected = macro.radial != null,
                 onClick = { macro = macro.copy(radial = radialIds.firstOrNull() ?: return@FilterChip) },
                 enabled = radialIds.isNotEmpty(),
-                label = { Text("Apri ruota radiale") },
+                label = { Text(str(R.string.open_wheel)) },
             )
         }
         if (macro.radial != null) {
@@ -148,22 +168,22 @@ fun MacroEditScreen(
                 }
             }
             Text(
-                "Scegli con lo stick. Le ruote \"Tieni premuto\" si confermano rilasciando la combinazione, " +
-                    "quelle \"Resta aperta\" con A, un tocco o la combinazione di nuovo.",
+                str(R.string.wheel_help),
                 color = Muted,
             )
         } else {
             ActionListEditor(macro.actions) { macro = macro.copy(actions = it) }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Switch(checked = macro.repeat, onCheckedChange = { macro = macro.copy(repeat = it) })
-                Text("Ripeti finché la combinazione è premuta (turbo)", color = Color.White)
+                Text(str(R.string.turbo), color = Ink, modifier = Modifier.weight(1f, fill = false))
             }
+        }
         }
     }
 }
 
 fun newMacro() = Macro(
-    name = "Nuova macro",
+    name = str(R.string.new_macro_name),
     trigger = Trigger(0, leftTrigger = false, rightTrigger = false, holdMs = 0, consume = true),
     actions = emptyList(),
     radial = null,

@@ -1,5 +1,10 @@
 package org.opengamepad.ui
 
+import org.opengamepad.str
+import org.opengamepad.R
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -40,34 +45,32 @@ fun MacroEditorScreen(
     BackHandler(onBack = onClose)
     var text by remember { mutableStateOf(initial) }
     var message by remember { mutableStateOf<String?>(null) }
+    val p = LocalPalette.current
     Column(
         Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(p.background)
+            .windowInsetsPadding(WindowInsets.displayCutout)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Macro e ruote", color = Color.White, fontSize = 20.sp)
-            Button(onClick = { message = onSave(text) ?: "Salvato" }) { Text("Salva") }
-            OutlinedButton(onClick = { text = MacroConfig.EXAMPLE }) { Text("Ripristina esempio") }
-            OutlinedButton(onClick = onClose) { Text("Chiudi") }
-            message?.let { Text(it, color = if (it == "Salvato") Color(0xFF6FCF97) else Color(0xFFEB5757)) }
+        ScreenHeader(str(R.string.advanced_title), onBack = onClose) {
+            Button(onClick = { message = onSave(text) ?: str(R.string.saved) }) { Text(str(R.string.save)) }
+            OutlinedButton(onClick = { text = MacroConfig.EXAMPLE }) { Text(str(R.string.restore_example)) }
+            message?.let { Text(it, color = if (it == str(R.string.saved)) Success else Danger) }
         }
         Text(
-            "Pulsanti: A B X Y LB RB LT RT BACK START GUIDE L3 R3 UP DOWN LEFT RIGHT · " +
-                "Tasti PC: A-Z 0-9 F1-F24 ENTER ESC TAB SPACE CTRL SHIFT ALT WIN ARROWUP… · " +
-                "Azioni: press, keys, stick, wait · I tasti PC richiedono il companion OpenGamepad o il Bluetooth.",
-            color = Color(0xFF8A91A0),
+            str(R.string.json_help),
+            color = p.muted,
             fontSize = 12.sp,
         )
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
-            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = Color(0xFFDCE0E8)),
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = p.text),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.Black,
-                unfocusedContainerColor = Color.Black,
+                focusedContainerColor = p.surface,
+                unfocusedContainerColor = p.surface,
             ),
             modifier = Modifier
                 .fillMaxWidth()

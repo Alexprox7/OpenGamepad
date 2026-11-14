@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +38,7 @@ private val DPAD_MASK = Buttons.DPAD_UP or Buttons.DPAD_DOWN or Buttons.DPAD_LEF
  * Xbox-style layout in landscape, Game Boy-style ([PortraitLayout]) when the screen is taller than
  * wide. [blackout] draws a black layer while controls stay active.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ControllerScreen(
     input: GamepadInput,
@@ -69,11 +73,11 @@ fun ControllerScreen(
         // Tilt steering on/off, and re-centre while it is on.
         if (onSteering != null) {
             PadButton("⎈", { if (it) onSteering() }, Modifier.size(44.dp), fontSize = 20,
-                color = if (steering) Accent else Color.White, selected = steering)
+                color = if (steering) Accent else Color.Unspecified, selected = steering)
         }
         if (onMotionSensor != null) {
             PadButton("⟲", { if (it) onMotionSensor() }, Modifier.size(44.dp), fontSize = 20,
-                color = if (motionSensor) Accent else Color.White, selected = motionSensor)
+                color = if (motionSensor) Accent else Color.Unspecified, selected = motionSensor)
         }
         // Motion axes per game: kart for Mario Kart, top hat (Cappy) for Super Mario Odyssey.
         if (axisPreset != null) {
@@ -91,10 +95,13 @@ fun ControllerScreen(
         if (onAmiibo != null) PadButton("NFC", { if (it) onAmiibo() }, Modifier.size(44.dp), fontSize = 12)
     }
 
+    val p = LocalPalette.current
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .background(Color.Black),
+            // Pure black under the saver layer, the cutout strip included.
+            .background(if (blackout) Color.Black else p.background)
+            .windowInsetsPadding(WindowInsets.displayCutout),
     ) {
         if (maxHeight > maxWidth) {
             PortraitLayout(input, status, nintendoLayout, maxWidth, systemButtons, ::button)
@@ -116,14 +123,18 @@ fun ControllerScreen(
 
         // Center: system buttons, screen saver, status
         Column(
-            Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
+            // Between the shoulder groups (2 × 96 dp + gap + margin on each side): never under LB/RB.
+            Modifier.align(Alignment.TopCenter).padding(top = 14.dp, start = 222.dp, end = 222.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 systemButtons()
             }
-            Text(status, color = Color(0xFF8A91A0), fontSize = 12.sp)
+            Text(status, color = Muted, fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 PadButton(if (nintendoLayout) "−" else "⧉", button(Buttons.BACK), Modifier.size(46.dp))
                 PadButton("⊙", button(Buttons.GUIDE), Modifier.size(56.dp), fontSize = 22)
@@ -165,7 +176,7 @@ fun ControllerScreen(
         if (blackout) Box(Modifier.fillMaxSize().background(Color.Black))
         // Above the black layer: the wheel must stay visible in OLED mode.
         radial?.let {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f)))
+            Box(Modifier.fillMaxSize().background((if (blackout) Color.Black else p.background).copy(alpha = 0.86f)))
             RadialMenuOverlay(it, nintendoLayout = nintendoLayout, onTap = onRadialTap, onBack = onRadialBack)
         }
     }
@@ -193,7 +204,7 @@ private fun PortraitLayout(
             horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) { systemButtons() }
-        Text(status, color = Color(0xFF8A91A0), fontSize = 12.sp)
+        Text(status, color = Muted, fontSize = 12.sp)
         Spacer(Modifier.weight(1f))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

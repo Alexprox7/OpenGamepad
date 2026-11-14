@@ -7,7 +7,7 @@
 <p align="center">
   Turn your Android phone into a low-latency game controller for Windows, Linux, macOS,
   Android phones, tablets and TVs, and Nintendo Switch.<br>
-  Wi‑Fi · USB · Bluetooth · physical controller passthrough · macros and radial menus · OLED power saving
+  Wi‑Fi · USB · Bluetooth · physical controller passthrough · macros and radial menus · dark and OLED themes
 </p>
 
 <p align="center">
@@ -31,16 +31,19 @@
   | macOS | – | Generic gamepad + keyboard (SDL/Steam games) |
   | Android phone, tablet, Android TV, Google TV | – | Gamepad + keyboard, recognised natively |
   | Nintendo Switch with Atmosphère (CFW) | Sysmodule → Pro Controller | – |
-- **Finds hosts by itself** – *Cerca* (search) lists companions and consoles on the local network;
+- **Finds hosts by itself** – *Search* lists companions and consoles on the local network;
   QR code and `IP:port` still work.
 - **Physical controller passthrough** – plug a controller into the phone (e.g. GameSir G8 Galileo):
   its input is merged with the touch controls and sent to the PC.
 - **Rumble and player index** forwarded from the game to the phone.
 - **Landscape or vertical** – fixed landscape, reversed, Android's auto-rotate, or a Game Boy-style
-  vertical layout (*Orientamento* in the app).
-- **Pitch‑black interface** – controls are thin outlines on pure black, so OLED pixels stay off.
+  vertical layout (*Settings → Orientation*).
+- **Dark and OLED black themes** – a dark anthracite theme by default; *OLED black* uses pure black,
+  so OLED pixels stay off. Layouts adapt to phones, tablets and Android handhelds, in landscape and portrait.
+- **Five languages** – English, Italian, Chinese (simplified and traditional) and Japanese, in the app
+  and in the companions; the system language is used, English otherwise.
 - **Screen power saving while you play**
-  - *OLED black*: black layer + minimum brightness, touch controls stay active.
+  - *Black layer (OLED)*: black layer + minimum brightness, touch controls stay active.
   - *Panel off* (works on LCD too): turns the display panel off through
     [Shizuku](https://shizuku.rikka.app/) while the physical controller keeps working.
   - Safety: Volume up, holding Back+Start on the controller or leaving the app turns the screen
@@ -57,9 +60,22 @@
   <img src="docs/images/wheel-editor.png" width="420" alt="Radial menu editor">
 </p>
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/connect.png" width="420" alt="Connection screen">
+  <img src="docs/images/settings.png" width="420" alt="Settings: theme, orientation, screen saver">
+  <img src="docs/images/macros.png" width="420" alt="Macros and radial menus">
+  <img src="docs/images/motion.png" width="420" alt="Motion settings">
+</p>
+<p align="center">
+  <img src="docs/images/portrait.png" width="260" alt="Vertical Game Boy-style layout">
+</p>
+
 ## Download
 
-> The app interface is currently in Italian. Translations are welcome – see [CONTRIBUTING.md](CONTRIBUTING.md).
+> The app and the companions are available in English, Italian, Chinese and Japanese. Corrections
+> from native speakers and new languages are welcome – see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Get the latest builds from the [Releases](../../releases) page:
 
@@ -77,9 +93,9 @@ Get the latest builds from the [Releases](../../releases) page:
 1. Install the [ViGEmBus driver](https://github.com/nefarius/ViGEmBus/releases) and the
    [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
 2. Run `OpenGamepadCompanion.exe`. Allow it on private networks when Windows Firewall asks.
-3. **Wi‑Fi:** in the app tap *Scansiona QR* (scan QR) and frame the code shown by the companion
+3. **Wi‑Fi:** in the app tap *Scan QR* and frame the code shown by the companion
    (or type `IP:47800`).
-   **USB:** enable USB debugging on the phone, plug it in and tap *Connetti via USB*.
+   **USB:** enable USB debugging on the phone, plug it in and tap *Connect via USB*.
    The companion needs `adb` ([Android platform-tools](https://developer.android.com/tools/releases/platform-tools))
    in `PATH` or in `C:\platform-tools`.
 
@@ -93,7 +109,7 @@ Get the latest builds from the [Releases](../../releases) page:
    sudo usermod -aG input $USER   # then log out and back in
    ```
 2. Run `./opengamepad-companion`: it prints a QR code in the terminal. Connect as on Windows
-   (QR, *Cerca* or `IP:47800`; USB needs `adb` in `PATH`). Open TCP 47800 and UDP 47800–47801
+   (QR, *Search* or `IP:47800`; USB needs `adb` in `PATH`). Open TCP 47800 and UDP 47800–47801
    if a firewall is active.
 
 Games see a wired Xbox 360 controller (same identity as the kernel `xpad` driver), with rumble.
@@ -103,7 +119,7 @@ Games see a wired Xbox 360 controller (same identity as the kernel `xpad` driver
 1. Copy the `atmosphere` folder from `OpenGamepad-Switch-<version>.zip` to the root of the SD card,
    then start *OpenGamepad* from ovl-sysmodules in the Tesla menu (it does not start at boot until
    you enable that there).
-2. Connect the Switch to the same Wi‑Fi as the phone. In the app tap *Cerca* and pick
+2. Connect the Switch to the same Wi‑Fi as the phone. In the app tap *Search* and pick
    *Nintendo Switch* (or type `<Switch IP>:47800`; the IP is in *System Settings → Internet*).
 3. A black and blue Pro Controller appears; up to four phones can connect. The buttons follow the
    Nintendo layout, by position (the bottom button is B).
@@ -124,11 +140,11 @@ With [emuiibo](https://github.com/XorTroll/emuiibo) also installed on the Switch
 amiibo on a virtual NFC reader: tap **NFC** on the controller screen (or map the **⚡ amiibo** wheel
 to any combo in the macro editor) and pick one.
 
-- *Telefono*: `.bin` dumps imported in the app's *Amiibo per Switch* card (single files, or a folder
+- *Phone*: `.bin` dumps imported in the app's *Amiibo* section (single files, or a folder
   whose sub-folders become groups). The first time one is used, the sysmodule creates a virtual amiibo
   for it in `emuiibo/amiibo/OpenGamepad/` (only its id and UID are sent; saves stay on the console).
 - *Switch*: the virtual amiibo already in `sdmc:/emuiibo/amiibo`, with their folders.
-- *Rimuovi* takes the amiibo off the reader.
+- *Remove* takes the amiibo off the reader.
 
 The first time, emuiibo emulation is switched on for you; a game that was already open has to be
 restarted once (the app says so), because emuiibo only intercepts games started with emulation on.
@@ -143,7 +159,7 @@ which needs a phone that can change its Bluetooth device class (most cannot with
 
 ### Bluetooth (no software on the host)
 
-1. In the app tap *Attiva Bluetooth* (enable), then *Rendi visibile* (make visible).
+1. In the app tap *Turn on Bluetooth*, then *Make visible*.
 2. On the PC, Mac, phone or TV add a Bluetooth device and pick the phone.
 3. Next time the phone reconnects by itself when the app starts.
 
@@ -158,7 +174,7 @@ another gamepad app, remove it from the PC and pair again: hosts cache the HID d
 ### Panel off on LCD phones
 
 Install and start [Shizuku](https://shizuku.rikka.app/) (wireless debugging or ADB), then tap
-*Concedi* (grant) in the *Risparmio schermo* (screen saver) card.
+*Grant* in *Settings → Screen saver*.
 
 ### Emergency: turning the screen back on
 
@@ -224,6 +240,10 @@ tools/            Helper scripts
   approach is the one used by [sys-botbase](https://github.com/olliz0r/sys-botbase) and
   [MissionControl](https://github.com/ndeadly/MissionControl).
 
+OpenGamepad was developed by Alexprox7 with the help of AI tools, including Anthropic's Claude.
+
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) for the code. The license does not cover the OpenGamepad name and logo.
+Nintendo Switch, Joy-Con and amiibo are trademarks of Nintendo; Xbox is a trademark of Microsoft;
+other names belong to their owners. OpenGamepad is not affiliated with or endorsed by them.

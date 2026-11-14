@@ -7,8 +7,10 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.opengamepad.R
 import org.opengamepad.macro.RadialMenu
 import org.opengamepad.macro.RadialMode
+import org.opengamepad.str
 
 class AmiiboTest {
     /** A synthetic 540-byte dump: UID 04 A1 B2 (BCC) C3 D4 E5 F6, id of 8-Bit Link (01000000 034f0902). */
@@ -85,7 +87,7 @@ class AmiiboTest {
         )
         assertEquals(AmiiboMenu.ID, menu.id)
         assertEquals(RadialMode.STICKY, menu.mode)
-        assertEquals(listOf("Rimuovi", "Telefono", "Switch"), menu.slices.map { it.label })
+        assertEquals(listOf(str(R.string.amiibo_remove), str(R.string.amiibo_phone), "Switch"), menu.slices.map { it.label })
         assertEquals(AmiiboMenu.KEY_CLEAR, menu.slices[0].key)
         assertEquals("phone:Mario", menu.slices[1].folder!!.slices.single().key)
         assertEquals("console:Daruk", menu.slices[2].folder!!.slices.single().key)
@@ -95,7 +97,7 @@ class AmiiboTest {
     fun singleSourceGoesStraightOnTheWheelWithFoldersAndPages() {
         val console = (1..30).map { "Amiibo %02d".format(it) } + listOf("Zelda/Link", "Zelda/Zelda", "Smash/Pikachu")
         val menu = AmiiboMenu.build(emptyList(), console)
-        assertEquals("Rimuovi", menu.slices.first().label)
+        assertEquals(str(R.string.amiibo_remove), menu.slices.first().label)
         // Folders come first, then single amiibo; nothing is lost and no wheel is crowded.
         assertEquals(listOf("Smash", "Zelda"), menu.slices.drop(1).take(2).map { it.label })
         assertEquals("console:Zelda/Link", menu.slices[2].folder!!.slices.first().key)

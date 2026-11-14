@@ -21,7 +21,8 @@ public sealed class AdbBridge : IDisposable
         _port = port;
         if (AdbPath is null)
         {
-            Status = "ADB non trovato: USB non disponibile (installa Android platform-tools)";
+            Status = L.T("ADB non trovato: USB non disponibile (installa Android platform-tools)",
+                "ADB not found: USB unavailable (install Android platform-tools)", "未找到 ADB：USB 不可用（请安装 Android platform-tools）", "找不到 ADB：無法使用 USB（請安裝 Android platform-tools）", "ADB が見つかりません：USB は使えません（Android platform-tools をインストールしてください）");
             return;
         }
         _ = PollAsync();
@@ -54,16 +55,17 @@ public sealed class AdbBridge : IDisposable
             var rules = await RunAsync($"-s {serial} reverse --list");
             if (rules.Contains($"tcp:{_port} tcp:{_port}")) continue;
             await RunAsync($"-s {serial} reverse tcp:{_port} tcp:{_port}");
-            if (_reversed.Add(serial)) Log.Write($"USB pronto su {serial}");
-            else Log.Write($"USB ripristinato su {serial}");
+            if (_reversed.Add(serial)) Log.Write(L.T($"USB pronto su {serial}", $"USB ready on {serial}", $"USB 已就绪：{serial}", $"USB 已就緒：{serial}", $"USB 準備完了：{serial}"));
+            else Log.Write(L.T($"USB ripristinato su {serial}", $"USB restored on {serial}", $"USB 已恢复：{serial}", $"USB 已恢復：{serial}", $"USB を復旧：{serial}"));
         }
 
         var unauthorized = devices.Count(p => p[1] == "unauthorized");
         SetStatus(ready.Count switch
         {
-            0 when unauthorized > 0 => "USB: autorizza il debug USB sul telefono",
-            0 => "USB: nessun telefono collegato",
-            _ => $"USB pronto: {string.Join(", ", ready)} → nell'app tocca \"USB\"",
+            0 when unauthorized > 0 => L.T("USB: autorizza il debug USB sul telefono", "USB: allow USB debugging on the phone", "USB：请在手机上允许 USB 调试", "USB：請在手機上允許 USB 偵錯", "USB：スマホで USB デバッグを許可してください"),
+            0 => L.T("USB: nessun telefono collegato", "USB: no phone connected", "USB：未连接手机", "USB：未連接手機", "USB：スマホが接続されていません"),
+            _ => L.T($"USB pronto: {string.Join(", ", ready)} → nell'app tocca \"USB\"",
+                $"USB ready: {string.Join(", ", ready)} → tap \"USB\" in the app", $"USB 已就绪：{string.Join(", ", ready)} → 在应用中点按“USB”", $"USB 已就緒：{string.Join(", ", ready)} → 在 App 中點按「USB」", $"USB 準備完了：{string.Join(", ", ready)} → アプリで「USB」をタップ"),
         });
     }
 

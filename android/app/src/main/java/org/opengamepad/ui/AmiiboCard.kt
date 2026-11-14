@@ -1,5 +1,7 @@
 package org.opengamepad.ui
 
+import org.opengamepad.str
+import org.opengamepad.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.opengamepad.amiibo.AmiiboLibrary
@@ -36,30 +37,28 @@ fun AmiiboCard(
 
     Card(
         "🎴",
-        "Amiibo per Switch",
-        "Scegli un amiibo dalla ruota (tasto NFC sul controller o una combinazione) · serve emuiibo sulla Switch",
+        str(R.string.amiibo_title),
+        str(R.string.amiibo_subtitle),
         Modifier.fillMaxWidth(),
     ) {
         Text(
-            "OpenGamepad non include file amiibo: importa i dump .bin delle tue statuette. " +
-                "La ruota mostra anche gli amiibo virtuali già presenti in emuiibo sulla Switch.",
+            str(R.string.amiibo_note),
             color = Faint,
             fontSize = 12.sp,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = onImportFiles) { Text("Importa file") }
-            OutlinedButton(onClick = onImportFolder) { Text("Importa cartella") }
+            OutlinedButton(onClick = onImportFiles) { Text(str(R.string.amiibo_import_files)) }
+            OutlinedButton(onClick = onImportFolder) { Text(str(R.string.amiibo_import_folder)) }
             Text(
                 when (entries.size) {
-                    0 -> "Nessun amiibo sul telefono"
-                    1 -> "1 amiibo sul telefono"
-                    else -> "${entries.size} amiibo sul telefono"
+                    0 -> str(R.string.amiibo_none)
+                    else -> str(R.string.amiibo_count, entries.size)
                 },
                 color = Muted,
                 fontSize = 13.sp,
             )
             if (entries.isNotEmpty()) {
-                TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Nascondi" else "Gestisci") }
+                TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) str(R.string.hide) else str(R.string.manage)) }
             }
         }
         if (expanded) {
@@ -68,9 +67,9 @@ fun AmiiboCard(
                     if (group.isNotEmpty()) Text("📁 $group", color = Muted, fontSize = 13.sp)
                     list.forEach { entry ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(entry.name, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Text(entry.name, color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
                             Text(entry.identity.idHex, color = Faint, fontSize = 11.sp)
-                            TextButton(onClick = { onDelete(entry) }) { Text("Elimina") }
+                            TextButton(onClick = { onDelete(entry) }) { Text(str(R.string.delete)) }
                         }
                     }
                 }

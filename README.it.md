@@ -7,7 +7,7 @@
 <p align="center">
   Trasforma il telefono Android in un controller a bassa latenza per Windows, Linux, macOS,
   telefoni, tablet e TV Android e Nintendo Switch.<br>
-  Wi‑Fi · USB · Bluetooth · controller fisico · macro e ruote radiali · risparmio energetico OLED
+  Wi‑Fi · USB · Bluetooth · controller fisico · macro e ruote radiali · temi scuro e nero OLED
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/controller.png" width="720" alt="Schermata del controller">
+  <img src="docs/images/it/controller.png" width="720" alt="Schermata del controller">
 </p>
 
 ## Funzioni
@@ -37,10 +37,13 @@
   vengono uniti ai comandi touch e inviati al PC.
 - **Vibrazione e numero giocatore** inoltrati dal gioco al telefono.
 - **Orizzontale o verticale** – orizzontale fisso, invertito, rotazione automatica di Android oppure un
-  layout verticale stile Game Boy (*Orientamento* nell'app).
-- **Interfaccia nero assoluto** – i comandi sono contorni sottili su nero puro, così i pixel OLED restano spenti.
+  layout verticale stile Game Boy (*Impostazioni → Orientamento*).
+- **Temi scuro e nero OLED** – tema scuro antracite di base; *Nero OLED* usa il nero puro, così i pixel
+  OLED restano spenti. I layout si adattano a telefoni, tablet e console Android portatili, in orizzontale e in verticale.
+- **Cinque lingue** – inglese, italiano, cinese (semplificato e tradizionale) e giapponese, nell'app e nei
+  companion; si usa la lingua di sistema, altrimenti l'inglese.
 - **Risparmio schermo mentre giochi**
-  - *Nero OLED*: livello nero + luminosità minima, i comandi touch restano attivi.
+  - *Strato nero (OLED)*: livello nero + luminosità minima, i comandi touch restano attivi.
   - *Spegni pannello* (anche su LCD): spegne il pannello tramite [Shizuku](https://shizuku.rikka.app/)
     mentre il controller fisico continua a funzionare.
   - Sicurezza: Volume su, Back+Start tenuti sul controller o l'uscita dall'app riaccendono lo schermo;
@@ -53,8 +56,20 @@
   - una finestra di combinazione evita che il primo pulsante di una combinazione arrivi al gioco.
 
 <p align="center">
-  <img src="docs/images/wheel.png" width="420" alt="Ruota radiale">
-  <img src="docs/images/wheel-editor.png" width="420" alt="Editor della ruota">
+  <img src="docs/images/it/wheel.png" width="420" alt="Ruota radiale">
+  <img src="docs/images/it/wheel-editor.png" width="420" alt="Editor della ruota">
+</p>
+
+## Schermate
+
+<p align="center">
+  <img src="docs/images/it/connect.png" width="420" alt="Schermata di connessione">
+  <img src="docs/images/it/settings.png" width="420" alt="Impostazioni: tema, orientamento, risparmio schermo">
+  <img src="docs/images/it/macros.png" width="420" alt="Macro e ruote radiali">
+  <img src="docs/images/it/motion.png" width="420" alt="Impostazioni di movimento">
+</p>
+<p align="center">
+  <img src="docs/images/it/portrait.png" width="260" alt="Layout verticale stile Game Boy">
 </p>
 
 ## Download
@@ -122,7 +137,7 @@ Con [emuiibo](https://github.com/XorTroll/emuiibo) installato sulla Switch, l'ap
 amiibo su un lettore NFC virtuale: tocca **NFC** sul controller (oppure assegna la ruota **⚡ amiibo**
 a una combinazione nell'editor delle macro) e sceglilo.
 
-- *Telefono*: i dump `.bin` importati nella scheda *Amiibo per Switch* dell'app (singoli file, oppure
+- *Telefono*: i dump `.bin` importati nella sezione *Amiibo* dell'app (singoli file, oppure
   una cartella le cui sottocartelle diventano gruppi). Al primo uso il sysmodule crea per ognuno un
   amiibo virtuale in `emuiibo/amiibo/OpenGamepad/` (vengono inviati solo id e UID; i salvataggi restano
   sulla console).
@@ -158,7 +173,7 @@ al momento dell'abbinamento.
 ### Spegnere il pannello sui telefoni LCD
 
 Installa e avvia [Shizuku](https://shizuku.rikka.app/) (debug wireless o ADB), poi tocca *Concedi*
-nella scheda *Risparmio schermo*.
+in *Impostazioni → Risparmio schermo*.
 
 ### Emergenza: riaccendere lo schermo
 
@@ -224,6 +239,11 @@ tools/            Script di supporto
   segue l'approccio di [sys-botbase](https://github.com/olliz0r/sys-botbase) e
   [MissionControl](https://github.com/ndeadly/MissionControl).
 
+OpenGamepad è stato sviluppato da Alexprox7 con l'aiuto di strumenti di intelligenza artificiale, tra cui
+Claude di Anthropic.
+
 ## Licenza
 
-[MIT](LICENSE)
+[MIT](LICENSE) per il codice. La licenza non riguarda il nome e il logo di OpenGamepad.
+Nintendo Switch, Joy-Con e amiibo sono marchi di Nintendo; Xbox è un marchio di Microsoft; gli altri
+nomi appartengono ai rispettivi proprietari. OpenGamepad non è affiliato né approvato da loro.

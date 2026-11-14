@@ -1,5 +1,7 @@
 package org.opengamepad.bt
 
+import org.opengamepad.str
+import org.opengamepad.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
@@ -63,7 +65,7 @@ class BluetoothGamepad(private val context: Context) {
             return
         }
         if (!adapter.isEnabled) {
-            _state.value = State.Failed("Bluetooth spento")
+            _state.value = State.Failed(str(R.string.bt_off))
             return
         }
         if (hid != null) return
@@ -90,7 +92,7 @@ class BluetoothGamepad(private val context: Context) {
             Log.i(TAG, "app registered=$registered plugged=${pluggedDevice?.address}")
             if (!registered) {
                 host = null
-                if (_state.value !is State.Off) _state.value = State.Failed("registrazione HID rifiutata")
+                if (_state.value !is State.Off) _state.value = State.Failed(str(R.string.hid_rejected))
                 return
             }
             _state.value = State.Ready

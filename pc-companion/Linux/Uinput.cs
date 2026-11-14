@@ -38,8 +38,10 @@ internal sealed class Uinput : IDisposable
         _fd = open("/dev/uinput", ORdWr | ONonBlock);
         if (_fd < 0)
             throw new IOException(
-                $"/dev/uinput non accessibile (errno {Marshal.GetLastPInvokeError()}): " +
-                "carica il modulo uinput e installa la regola udev (vedi README)");
+                L.T($"/dev/uinput non accessibile (errno {Marshal.GetLastPInvokeError()}): " +
+                    "carica il modulo uinput e installa la regola udev (vedi README)",
+                    $"/dev/uinput not accessible (errno {Marshal.GetLastPInvokeError()}): " +
+                    "load the uinput module and install the udev rule (see README)", $"无法访问 /dev/uinput（errno {Marshal.GetLastPInvokeError()}）：请加载 uinput 模块并安装 udev 规则（见 README）", $"無法存取 /dev/uinput（errno {Marshal.GetLastPInvokeError()}）：請載入 uinput 模組並安裝 udev 規則（見 README）", $"/dev/uinput にアクセスできません（errno {Marshal.GetLastPInvokeError()}）：uinput モジュールを読み込み、udev ルールをインストールしてください（README 参照）"));
     }
 
     public void EnableEvent(ushort type) => Check(ioctl(_fd, UiSetEvBit, type), "UI_SET_EVBIT");
@@ -143,7 +145,7 @@ internal sealed class Uinput : IDisposable
 
     private static void Check(int result, string what)
     {
-        if (result < 0) throw new IOException($"{what} fallito (errno {Marshal.GetLastPInvokeError()})");
+        if (result < 0) throw new IOException(L.T($"{what} fallito (errno {Marshal.GetLastPInvokeError()})", $"{what} failed (errno {Marshal.GetLastPInvokeError()})", $"{what} 失败（errno {Marshal.GetLastPInvokeError()}）", $"{what} 失敗（errno {Marshal.GetLastPInvokeError()}）", $"{what} に失敗（errno {Marshal.GetLastPInvokeError()}）"));
     }
 
     [DllImport("libc", SetLastError = true)] private static extern int open(string path, int flags);

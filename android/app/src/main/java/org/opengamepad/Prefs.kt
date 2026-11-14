@@ -59,6 +59,17 @@ class Prefs(context: Context) {
             .getOrDefault(ScreenOrientation.LANDSCAPE)
         set(value) = prefs.edit().putString(KEY_ORIENTATION, value.name).apply()
 
+    /** Colour theme: dark (default) or OLED black. */
+    var theme: org.opengamepad.ui.AppTheme
+        get() = runCatching { org.opengamepad.ui.AppTheme.valueOf(prefs.getString(KEY_THEME, null)!!) }
+            .getOrDefault(org.opengamepad.ui.AppTheme.DARK)
+        set(value) = prefs.edit().putString(KEY_THEME, value.name).apply()
+
+    /** App language: "" follows the system, otherwise a tag from OpenGamepadApp.LANGUAGES. */
+    var language: String
+        get() = prefs.getString(KEY_LANGUAGE, null) ?: ""
+        set(value) = prefs.edit().putString(KEY_LANGUAGE, value).apply()
+
     /** The sensor's centring hint was shown once. */
     var motionHintShown: Boolean
         get() = prefs.getBoolean(KEY_MOTION_HINT, false)
@@ -66,6 +77,8 @@ class Prefs(context: Context) {
 
     private companion object {
         const val KEY_ORIENTATION = "orientation"
+        const val KEY_THEME = "theme"
+        const val KEY_LANGUAGE = "language"
         const val KEY_MOTION_HINT = "motion_hint"
         const val KEY_RUMBLE = "rumble"
         const val KEY_MOTION = "motion"

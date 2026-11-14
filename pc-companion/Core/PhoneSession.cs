@@ -45,8 +45,8 @@ public sealed class PhoneSession : IDisposable
 
     public string Describe() =>
         $"{(IsUsb ? "USB" : Remote.Address.ToString())} · id {DeviceId:X16}" +
-        (PlayerIndex >= 0 ? $" · giocatore {PlayerIndex + 1}" : "") +
-        (IsOpenGamepad ? "" : " · app originale");
+        (PlayerIndex >= 0 ? L.T($" · giocatore {PlayerIndex + 1}", $" · player {PlayerIndex + 1}", $" · 玩家 {PlayerIndex + 1}", $" · 玩家 {PlayerIndex + 1}", $" · プレイヤー {PlayerIndex + 1}") : "") +
+        (IsOpenGamepad ? "" : L.T(" · app originale", " · original app", " · 原版应用", " · 原版 App", " · 元のアプリ"));
 
     public async Task RunAsync()
     {
@@ -54,7 +54,7 @@ public sealed class PhoneSession : IDisposable
         {
             var hello = await ReadMessageAsync(_cts.Token);
             if (hello is not { Type: Protocol.TypeHello } || hello.Value.Payload.Length < 8)
-                throw new IOException("handshake non valido");
+                throw new IOException(L.T("handshake non valido", "invalid handshake", "握手无效", "握手無效", "無効なハンドシェイク"));
             var payload = hello.Value.Payload;
             DeviceId = BinaryPrimitives.ReadUInt64BigEndian(payload);
             IsOpenGamepad = payload.Length >= 11 && payload.AsSpan(8, 3).SequenceEqual(Protocol.ExtensionMagic);
@@ -99,7 +99,7 @@ public sealed class PhoneSession : IDisposable
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            Log.Write($"Controller virtuale: {e.Message}");
+            Log.Write(L.T($"Controller virtuale: {e.Message}", $"Virtual controller: {e.Message}", $"虚拟控制器：{e.Message}", $"虛擬控制器：{e.Message}", $"仮想コントローラー：{e.Message}"));
         }
         finally
         {
@@ -162,7 +162,7 @@ public sealed class PhoneSession : IDisposable
         var lengthBytes = new byte[2];
         if (!await ReadExactlyAsync(lengthBytes, token)) return null;
         int length = BinaryPrimitives.ReadUInt16LittleEndian(lengthBytes);
-        if (length < Protocol.RxHeaderSize) throw new IOException($"pacchetto non valido ({length})");
+        if (length < Protocol.RxHeaderSize) throw new IOException(L.T($"pacchetto non valido ({length})", $"invalid packet ({length})", $"数据包无效（{length}）", $"封包無效（{length}）", $"無効なパケット（{length}）"));
         var packet = new byte[length];
         lengthBytes.CopyTo(packet, 0);
         if (!await ReadExactlyAsync(packet.AsMemory(2), token)) return null;

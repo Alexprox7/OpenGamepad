@@ -1,5 +1,7 @@
 package org.opengamepad.screen
 
+import org.opengamepad.str
+import org.opengamepad.R
 import android.app.Activity
 import android.view.WindowManager
 import kotlinx.coroutines.CoroutineScope
@@ -56,7 +58,7 @@ class ScreenSaver(
                 _state.value = SaverState.PANEL_OFF
                 startHeartbeat()
             } else {
-                onMessage("Spegnimento pannello non disponibile (Shizuku): uso lo schermo nero")
+                onMessage(str(R.string.panel_unavailable))
             }
         }
     }

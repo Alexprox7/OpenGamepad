@@ -1,5 +1,7 @@
 package org.opengamepad.amiibo
 
+import org.opengamepad.str
+import org.opengamepad.R
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import org.opengamepad.macro.RadialMenu
@@ -46,10 +48,10 @@ class AmiiboController(
     /** Provider for the dynamic radial menu; null hides it (not connected to a Switch). */
     fun menu(): RadialMenu? {
         if (!available) {
-            _messages.tryEmit("Amiibo: collegati prima alla Switch via Wi‑Fi")
+            _messages.tryEmit(str(R.string.amiibo_need_wifi))
             return null
         }
-        if (!emuiibo) _messages.tryEmit("Amiibo: emuiibo non è attivo sulla Switch")
+        if (!emuiibo) _messages.tryEmit(str(R.string.amiibo_no_emuiibo_short))
         val phone = library.entries.value.map { AmiiboMenu.PhoneItem(it.name, it.group, it.key) }
         // The list may have changed since the last look: refresh for next time.
         refresh()
@@ -88,13 +90,13 @@ class AmiiboController(
                 val status = AmiiboProtocol.parseStatus(message.payload) ?: return
                 _messages.tryEmit(
                     when (status.result) {
-                        AmiiboProtocol.Result.ACTIVE -> "Amiibo attivo: ${status.text}"
+                        AmiiboProtocol.Result.ACTIVE -> str(R.string.amiibo_active, status.text)
                         AmiiboProtocol.Result.RESTART_GAME ->
-                            "Amiibo attivo: ${status.text} · riavvia il gioco: era aperto prima che emuiibo fosse attivo (solo questa volta)"
-                        AmiiboProtocol.Result.CLEARED -> "Amiibo rimosso"
-                        AmiiboProtocol.Result.NO_EMUIIBO -> "emuiibo non è attivo sulla Switch: installalo o avvialo"
-                        AmiiboProtocol.Result.NOT_FOUND -> "Amiibo non trovato sulla Switch: ${status.text}"
-                        AmiiboProtocol.Result.ERROR -> "Errore amiibo (0x%x): %s".format(status.rc, status.text)
+                            str(R.string.amiibo_active_restart, status.text)
+                        AmiiboProtocol.Result.CLEARED -> str(R.string.amiibo_removed)
+                        AmiiboProtocol.Result.NO_EMUIIBO -> str(R.string.amiibo_no_emuiibo)
+                        AmiiboProtocol.Result.NOT_FOUND -> str(R.string.amiibo_not_found, status.text)
+                        AmiiboProtocol.Result.ERROR -> str(R.string.amiibo_error, status.rc, status.text)
                     },
                 )
                 // A new folder may exist now.

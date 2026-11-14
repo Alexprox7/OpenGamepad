@@ -1,5 +1,7 @@
 package org.opengamepad.motion
 
+import org.opengamepad.str
+import org.opengamepad.R
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -178,15 +180,17 @@ class DsuServer(private val mac: ByteArray, private val port: Int = MotionSettin
         val s = try {
             DatagramSocket(null).apply {
                 reuseAddress = true
-                bind(InetSocketAddress(port))
+                // Qualified: inside apply, a bare `port` is DatagramSocket.port (-1 while unconnected).
+                bind(InetSocketAddress(this@DsuServer.port))
             }
-        } catch (e: IOException) {
+        } catch (e: Exception) { // never take the app down: it runs from onResume
+
             Log.w(TAG, "cannot open UDP $port", e)
-            _status.value = "Porta $port occupata: ${e.message}"
+            _status.value = str(R.string.dsu_port_busy, port, e.message ?: "")
             return
         }
         socket = s
-        _status.value = "In ascolto sulla porta $port"
+        _status.value = str(R.string.dsu_listening, port)
         job = scope.launch {
             val buffer = ByteArray(128)
             val packet = DatagramPacket(buffer, buffer.size)
@@ -221,7 +225,7 @@ class DsuServer(private val mac: ByteArray, private val port: Int = MotionSettin
                 if (flags and 1 != 0 && slot != 0) return
                 if (clients.put(from, System.nanoTime()) == null) {
                     Log.i(TAG, "client $from")
-                    _status.value = "Emulatore collegato: ${packet.address.hostAddress}"
+                    _status.value = str(R.string.dsu_client, packet.address.hostAddress ?: "")
                 }
                 emptyList()
             }
@@ -237,7 +241,7 @@ class DsuServer(private val mac: ByteArray, private val port: Int = MotionSettin
         val now = System.nanoTime()
         clients.entries.removeIf { now - it.value > SUBSCRIPTION_NS }
         if (clients.isEmpty()) {
-            _status.value = "In ascolto sulla porta $port"
+            _status.value = str(R.string.dsu_listening, port)
             return
         }
         val packet = synchronized(this) { DsuProtocol.padData(serverId, number++, mac, state, motion) }

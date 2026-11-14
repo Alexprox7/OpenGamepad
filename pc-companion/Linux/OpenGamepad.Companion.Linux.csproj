@@ -8,7 +8,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>opengamepad-companion</AssemblyName>
     <RootNamespace>OpenGamepad.Companion</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <Product>OpenGamepad Companion</Product>
     <Description>Turns the OpenGamepad Android app into a virtual Xbox 360 controller on Linux (uinput).</Description>
     <Copyright>OpenGamepad contributors · MIT License</Copyright>

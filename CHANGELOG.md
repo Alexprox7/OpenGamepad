@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.2.0 – unreleased
+
+### Android app
+- **New look**: dark anthracite theme by default and an *OLED black* theme in *Settings → Appearance*;
+  every screen, dialog and control follows the chosen theme.
+- **Navigation**: side rail (bottom bar in portrait) with Connect, Motion, Amiibo and Settings; macros and
+  the controller open from there. Safe areas around camera cut-outs are respected.
+- **Radial wheel** redrawn: ring slices with even gaps, the selected slice lit in its colour with a short
+  grow animation, a pointer on the hub and the selected name in the centre. Selection logic, slice order
+  and inputs are unchanged.
+- Macro list with combinations shown as key caps; the macro and wheel editors are grouped in cards and
+  work in portrait too.
+- Function buttons on the controller never overlap the shoulder buttons; they wrap on narrow screens.
+- **Languages**: English, Italian, Chinese (simplified and traditional) and Japanese, following the system
+  language (English otherwise); a picker in *Settings → Language* overrides it.
+- Connection screen: Wi‑Fi, USB and Bluetooth side by side on wide screens, so Bluetooth is always in sight.
+
+### Fixes
+- Turning on the DSU server crashed the app, and it kept crashing at every launch while the option stayed on
+  (it bound to port -1). Present since 1.1.0.
+
+### Companion
+- Windows window restyled with the app's palette and a dark title bar; colours in the Linux terminal.
+- Messages in the same five languages.
+
 ## 1.1.0 – 2026-11-14
 
 ### New hosts

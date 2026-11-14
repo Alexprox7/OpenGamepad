@@ -1,5 +1,7 @@
 package org.opengamepad.net
 
+import org.opengamepad.str
+import org.opengamepad.R
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,7 +78,7 @@ class WifiConnection(private val deviceId: Long) {
         session = scope.launch {
             val label = target.toString()
             _status.value = ConnectionStatus.Connecting(label)
-            var lastError = "nessun indirizzo"
+            var lastError = str(R.string.no_address)
             for (host in target.hosts) {
                 try {
                     runSession(host, target, label)
@@ -123,7 +125,7 @@ class WifiConnection(private val deviceId: Long) {
         Log.i(TAG, "connessione $id: risposta $reply")
         // The PC answers with type 0: u16 UDP port, then (v1.1+) u8 operating system.
         val body = reply.payloadBuffer()
-        if (body.remaining() < 2) throw IOException("risposta di handshake non valida")
+        if (body.remaining() < 2) throw IOException(str(R.string.bad_handshake))
         val udpPort = body.short.toInt() and 0xFFFF
         val pcOs = if (body.hasRemaining()) osName(body.get().toInt()) else "Windows"
         val companion = body.remaining() >= 4 &&
@@ -176,7 +178,7 @@ class WifiConnection(private val deviceId: Long) {
                 statesSent.incrementAndGet()
             } catch (e: IOException) {
                 Log.w(TAG, "connessione $id: invio fallito", e)
-                fail("invio fallito: ${e.message}")
+                fail(str(R.string.send_failed, e.message ?: ""))
                 return
             }
         }
@@ -188,7 +190,7 @@ class WifiConnection(private val deviceId: Long) {
             while (scope.isActive) handleIncoming(readMessage(input))
         } catch (e: IOException) {
             // A connection replaced by a newer one ends here too: it must not close the new one.
-            if (tcp === socket) fail("il PC ha chiuso la connessione")
+            if (tcp === socket) fail(str(R.string.pc_closed))
         }
     }
 
@@ -218,13 +220,13 @@ class WifiConnection(private val deviceId: Long) {
         val lo = input.readUnsignedByte()
         val hi = input.readUnsignedByte()
         val length = lo or (hi shl 8)
-        if (length < Wire.RX_HEADER_SIZE) throw IOException("pacchetto non valido ($length)")
+        if (length < Wire.RX_HEADER_SIZE) throw IOException(str(R.string.bad_packet_len, length))
         val packet = ByteArray(length)
         packet[0] = lo.toByte()
         packet[1] = hi.toByte()
         input.readFully(packet, 2, length - 2)
         Log.v(TAG, "rx " + packet.joinToString(" ") { "%02x".format(it) })
-        return Wire.parse(packet) ?: throw IOException("pacchetto non valido")
+        return Wire.parse(packet) ?: throw IOException(str(R.string.bad_packet))
     }
 
     fun send(state: ControllerState) {
@@ -301,7 +303,7 @@ class WifiConnection(private val deviceId: Long) {
         2 -> "Linux"
         3 -> "Mac"
         4 -> "Switch"
-        else -> "sconosciuto ($code)"
+        else -> str(R.string.unknown_os, code)
     }
 
     companion object {

@@ -1,5 +1,7 @@
 package org.opengamepad.amiibo
 
+import org.opengamepad.str
+import org.opengamepad.R
 import org.opengamepad.macro.RadialMenu
 import org.opengamepad.macro.RadialMode
 import org.opengamepad.macro.RadialSlice
@@ -26,9 +28,9 @@ object AmiiboMenu {
     data class PhoneItem(val name: String, val group: String, val key: String)
 
     fun build(phone: List<PhoneItem>, console: List<String>): RadialMenu {
-        val clear = RadialSlice("Rimuovi", "⏏", CLEAR_COLOR, key = KEY_CLEAR)
+        val clear = RadialSlice(str(R.string.amiibo_remove), "⏏", CLEAR_COLOR, key = KEY_CLEAR)
         val sources = buildList {
-            if (phone.isNotEmpty()) add(Triple("Telefono", "📱", phoneTree(phone)) to "phone")
+            if (phone.isNotEmpty()) add(Triple(str(R.string.amiibo_phone), "📱", phoneTree(phone)) to "phone")
             if (console.isNotEmpty()) add(Triple("Switch", "🎮", consoleTree(console, "")) to "console")
         }
         // With a single source its content goes straight on the first wheel; "Rimuovi" always
@@ -68,7 +70,7 @@ object AmiiboMenu {
         if (slices.size <= room) return slices
         val rest = slices.drop(room - 1)
         return slices.take(room - 1) +
-            RadialSlice("Altri…", "➕", FOLDER_COLOR, key = "more", folder = menu("$id+", paginate(rest, "$id+")))
+            RadialSlice(str(R.string.more), "➕", FOLDER_COLOR, key = "more", folder = menu("$id+", paginate(rest, "$id+")))
     }
 
     private fun menu(id: String, slices: List<RadialSlice>) = RadialMenu(id, Stick.RIGHT, slices, RadialMode.STICKY)

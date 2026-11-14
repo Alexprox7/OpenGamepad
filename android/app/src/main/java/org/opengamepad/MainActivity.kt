@@ -66,9 +66,6 @@ import org.opengamepad.ui.StatusKind
 import org.opengamepad.ui.ControllerScreen
 import org.opengamepad.ui.MacroEditorScreen
 import org.opengamepad.ui.editor.MacroHomeScreen
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.ui.graphics.Color
 import org.opengamepad.protocol.ControllerState
 
 class MainActivity : ComponentActivity() {
@@ -87,6 +84,9 @@ class MainActivity : ComponentActivity() {
     private var showPad by mutableStateOf(false)
     private var rumbleOn by mutableStateOf(true)
     private var orientation by mutableStateOf(ScreenOrientation.LANDSCAPE)
+    private var theme by mutableStateOf(org.opengamepad.ui.AppTheme.DARK)
+    private var language by mutableStateOf("")
+    private var homeSection by mutableStateOf(0)
     private var showMacros by mutableStateOf(false)
     private var showJson by mutableStateOf(false)
     private var foundHosts by mutableStateOf(emptyList<org.opengamepad.net.FoundHost>())
@@ -108,8 +108,8 @@ class MainActivity : ComponentActivity() {
 
     private fun reportImport(result: AmiiboLibrary.ImportResult) {
         toast(
-            "Amiibo importati: ${result.added}" +
-                if (result.skipped > 0) " · ${result.skipped} file ignorati (non sono dump amiibo)" else "",
+            str(R.string.amiibo_imported, result.added) +
+                if (result.skipped > 0) " · " + str(R.string.amiibo_skipped, result.skipped) else "",
         )
     }
 
@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
             // Notifications are optional: only the Bluetooth permissions are required.
             if (hasBluetoothPermission()) enableBluetooth()
-            else toast("Senza il permesso Bluetooth la modalità senza companion non è disponibile")
+            else toast(str(R.string.bt_perm_needed))
         }
 
     /**
@@ -146,7 +146,7 @@ class MainActivity : ComponentActivity() {
             }
             if (!starting) return
             if (shizukuState != ShizukuScreen.Availability.READY) {
-                toast("Conferma subito \"Accoppia\": con Shizuku attivo lo farebbe l'app da sola")
+                toast(str(R.string.confirm_pair))
                 return
             }
             lifecycleScope.launch {
@@ -185,7 +185,7 @@ class MainActivity : ComponentActivity() {
         macros = MacroEngine(lifecycleScope)
         applyMacros(
             runCatching { MacroConfig.parse(prefs.macroJson) }.getOrElse {
-                toast("Configurazione macro non valida: ${it.message}")
+                toast(str(R.string.macro_invalid, it.message ?: ""))
                 MacroConfig.EMPTY
             },
             save = false,
@@ -214,6 +214,8 @@ class MainActivity : ComponentActivity() {
         // The screen stays on only on the controller; elsewhere the phone locks as usual.
         rumbleOn = prefs.rumble
         orientation = prefs.orientation
+        theme = prefs.theme
+        language = prefs.language
         requestedOrientation = orientation.android
         lifecycleScope.launch {
             snapshotFlow { showPad }.collect { pad ->
@@ -254,7 +256,7 @@ class MainActivity : ComponentActivity() {
                 if (status is ConnectionStatus.Connected) showPad = true
                 amiibo.available = status is ConnectionStatus.Connected &&
                     status.pcOs.startsWith("Switch") && "OpenGamepad" in status.pcOs
-                if (status is ConnectionStatus.Failed) toast("Connessione persa: ${status.reason}")
+                if (status is ConnectionStatus.Failed) toast(str(R.string.connection_lost, status.reason))
             }
         }
         watchWakeCombo()
@@ -271,19 +273,9 @@ class MainActivity : ComponentActivity() {
         if (BuildConfig.DEBUG) applyTestExtras()
 
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    primary = org.opengamepad.ui.Accent,
-                    onPrimary = Color.Black,
-                    secondaryContainer = Color(0xFF262A33),
-                    onSecondaryContainer = Color.White,
-                    background = Color.Black,
-                    surface = Color.Black,
-                    surfaceContainerHigh = Color(0xFF15171B),
-                    outline = Color(0xFF30343D),
-                ),
-            ) {
-                Screens()
+            org.opengamepad.ui.OpenGamepadTheme(theme) {
+                // A new language rebuilds the screens, so every text is read again.
+                androidx.compose.runtime.key(language) { Screens() }
             }
         }
     }
@@ -296,7 +288,7 @@ class MainActivity : ComponentActivity() {
             val btState by bluetooth.state.collectAsState()
             val statusText = (btState as? BluetoothGamepad.State.Connected)?.let {
                 if (bluetoothProfileId == SwitchProProfile.ID) {
-                    "Switch: ${it.name}" + if (switchPlayer > 0) " · giocatore $switchPlayer" else ""
+                    "Switch: ${it.name}" + if (switchPlayer > 0) " · " + str(R.string.player, switchPlayer) else ""
                 } else {
                     "Bluetooth: ${it.name}"
                 }
@@ -311,7 +303,7 @@ class MainActivity : ComponentActivity() {
                             applyMacros(MacroConfig.parse(json), save = true)
                             null
                         } catch (e: IllegalArgumentException) {
-                            e.message ?: "Configurazione non valida"
+                            e.message ?: str(R.string.invalid_config)
                         }
                     },
                     onClose = { showJson = false },
@@ -356,7 +348,7 @@ class MainActivity : ComponentActivity() {
                         motion.update { it.copy(gyro = !it.gyro) }
                         if (motion.settings.value.gyro && !prefs.motionHintShown) {
                             prefs.motionHintShown = true
-                            toast("Sensore attivo: tieni il telefono nella posizione di gioco e tocca ◎ per impostare la posizione neutra")
+                            toast(str(R.string.sensor_hint))
                         }
                     }) else null,
                     axisPreset = motionSettings.axes.takeIf { motionSettings.gyro },
@@ -396,6 +388,19 @@ class MainActivity : ComponentActivity() {
                     onTryLayout = { showPad = true },
                     onMacros = { showMacros = true },
                     onSaverMode = { saverMode = it; prefs.saverMode = it },
+                    theme = theme,
+                    onTheme = {
+                        theme = it
+                        prefs.theme = it
+                    },
+                    language = language,
+                    sectionIndex = homeSection,
+                    onSection = { homeSection = it },
+                    onLanguage = {
+                        prefs.language = it
+                        (application as OpenGamepadApp).applyLanguage(it)
+                        language = it
+                    },
                     orientation = orientation,
                     onOrientation = {
                         orientation = it
@@ -508,17 +513,16 @@ class MainActivity : ComponentActivity() {
             state !is BluetoothGamepad.State.Unsupported && state !is BluetoothGamepad.State.Failed
         val status = when (state) {
             BluetoothGamepad.State.Off -> ""
-            BluetoothGamepad.State.Unsupported -> "Non supportato su questo telefono"
-            BluetoothGamepad.State.Registering -> "Attivazione…"
+            BluetoothGamepad.State.Unsupported -> str(R.string.bt_unsupported)
+            BluetoothGamepad.State.Registering -> str(R.string.bt_registering)
             BluetoothGamepad.State.Ready -> if (bluetoothProfileId == SwitchProProfile.ID) {
-                "Sulla Switch apri Controller → Cambia impugnatura/ordine, poi tocca Rendi visibile: " +
-                    "il telefono appare come \"Pro Controller\""
+                str(R.string.bt_switch_hint)
             } else {
-                "Pronto: abbina il telefono dal PC/TV, oppure tocca un dispositivo già abbinato"
+                str(R.string.bt_ready)
             }
-            is BluetoothGamepad.State.Connecting -> "Connessione a ${state.name}…"
-            is BluetoothGamepad.State.Connected -> "Connesso a ${state.name}"
-            is BluetoothGamepad.State.Failed -> "Errore: ${state.reason}"
+            is BluetoothGamepad.State.Connecting -> str(R.string.connecting_to, state.name)
+            is BluetoothGamepad.State.Connected -> str(R.string.connected_to, state.name)
+            is BluetoothGamepad.State.Failed -> str(R.string.error, state.reason)
         }
         val hosts = if (active && hasBluetoothPermission()) {
             runCatching { bluetooth.pairedHosts().map { it.address to (it.name ?: it.address) } }.getOrDefault(emptyList())
@@ -592,7 +596,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun applyGamepadDeviceClass() {
         if (shizuku.availability() != ShizukuScreen.Availability.READY) {
-            toast("Per la Switch serve Shizuku attivo: senza, la console rifiuta il telefono")
+            toast(str(R.string.switch_needs_shizuku))
             return
         }
         lifecycleScope.launch {
@@ -641,7 +645,7 @@ class MainActivity : ComponentActivity() {
                 .onFailure { android.util.Log.e("Discovery", "search failed", it) }
                 .getOrDefault(emptyList())
             searching = false
-            if (foundHosts.isEmpty()) toast("Nessun dispositivo OpenGamepad trovato sulla rete")
+            if (foundHosts.isEmpty()) toast(str(R.string.none_found))
         }
     }
 
@@ -649,7 +653,7 @@ class MainActivity : ComponentActivity() {
         scanner.launch(
             ScanOptions()
                 .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                .setPrompt("Inquadra il codice QR mostrato dall'app PC")
+                .setPrompt(str(R.string.qr_prompt))
                 .setBeepEnabled(false)
                 .setOrientationLocked(false),
         )
@@ -659,7 +663,7 @@ class MainActivity : ComponentActivity() {
         android.util.Log.i("MainActivity", "connect target: $raw")
         val target = ConnectTarget.parse(raw)
         if (target == null) {
-            toast("Formato non riconosciuto: $raw")
+            toast(str(R.string.bad_format, raw))
             return
         }
         if (!target.usb) prefs.lastTarget = "${target.hosts.first()}:${target.port}"
@@ -700,14 +704,18 @@ class MainActivity : ComponentActivity() {
             runCatching { applyMacros(MacroConfig.parse(java.io.File(path).readText()), save = false) }
                 .onFailure { toast("Macro di test non caricate: ${it.message}") }
         }
+        // Screenshots: open the controller, optionally with a wheel already shown.
+        if (intent.getBooleanExtra("pad", false)) showPad = true
+        intent.getStringExtra("radial")?.let { macros.openRadial(it) }
     }
 
     private fun describe(status: ConnectionStatus): String = when (status) {
-        ConnectionStatus.Idle -> "Non connesso"
-        is ConnectionStatus.Connecting -> "Connessione a ${status.target}…"
+        ConnectionStatus.Idle -> str(R.string.not_connected)
+        is ConnectionStatus.Connecting -> str(R.string.connecting_to, status.target.toString())
         is ConnectionStatus.Connected ->
-            "Connesso a ${status.target} (${status.pcOs})" + if (playerLed > 0) " · giocatore $playerLed" else ""
-        is ConnectionStatus.Failed -> "Errore: ${status.reason}"
+            str(R.string.connected_os, status.target.toString(), status.pcOs) +
+                if (playerLed > 0) " · " + str(R.string.player, playerLed) else ""
+        is ConnectionStatus.Failed -> str(R.string.error, status.reason)
     }
 
     private fun refreshShizuku() {

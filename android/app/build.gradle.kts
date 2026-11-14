@@ -15,8 +15,8 @@ android {
         applicationId = "org.opengamepad"
         minSdk = 28
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.1.0"
+        versionCode = 7
+        versionName = "1.2.0"
     }
 
     // Release signing: keystore.properties (local, never committed) or environment variables (CI).

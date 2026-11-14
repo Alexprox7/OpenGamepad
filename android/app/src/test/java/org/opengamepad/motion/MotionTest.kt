@@ -15,6 +15,20 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class MotionTest {
+    @Test
+    fun `DSU server listens on its own port`() {
+        // Regression: inside DatagramSocket.apply a bare `port` was the socket's (-1) and crashed onResume.
+        val port = java.net.DatagramSocket(0).use { it.localPort } // a free port
+        val server = DsuServer(ByteArray(6), port)
+        server.start()
+        try {
+            // "listening", not "port busy": the bind on the real port worked.
+            assertEquals(org.opengamepad.str(org.opengamepad.R.string.dsu_listening, port), server.status.value)
+        } finally {
+            server.stop()
+        }
+    }
+
 
     // --- steering ---
 

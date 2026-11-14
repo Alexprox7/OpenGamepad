@@ -1,5 +1,7 @@
 package org.opengamepad.macro
 
+import org.opengamepad.str
+import org.opengamepad.R
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -164,7 +166,7 @@ data class MacroConfig(
             val root = try {
                 JSONObject(json)
             } catch (e: Exception) {
-                throw IllegalArgumentException("JSON non valido: ${e.message}")
+                throw IllegalArgumentException(str(R.string.json_invalid, e.message ?: ""))
             }
             val radials = root.optJSONArray("radials").objects().associate { r ->
                 val id = r.getString("id")
@@ -176,7 +178,7 @@ data class MacroConfig(
                             label = s.optString("label"),
                             icon = s.optString("icon"),
                             color = color(s.optString("color")),
-                            actions = actions(s.optJSONArray("actions"), "spicchio ${s.optString("label")}"),
+                            actions = actions(s.optJSONArray("actions"), str(R.string.slice_ctx, s.optString("label"))),
                             submenu = s.optString("submenu").takeIf { it.isNotEmpty() },
                             key = s.optString("key"),
                         )
@@ -187,12 +189,12 @@ data class MacroConfig(
             fun exists(id: String) = id in radials || id.startsWith(DYNAMIC_RADIAL_PREFIX)
             for (r in radials.values) for (slice in r.slices) {
                 val sub = slice.submenu ?: continue
-                if (!exists(sub)) throw IllegalArgumentException("${r.id}: spicchio ${slice.label} apre la ruota \"$sub\" inesistente")
+                if (!exists(sub)) throw IllegalArgumentException(str(R.string.missing_sub, r.id, slice.label, sub))
             }
             val macros = root.optJSONArray("macros").objects().map { m ->
                 val name = m.optString("name", "macro")
                 val radial = m.optString("radial").takeIf { it.isNotEmpty() }
-                if (radial != null && !exists(radial)) throw IllegalArgumentException("$name: ruota \"$radial\" inesistente")
+                if (radial != null && !exists(radial)) throw IllegalArgumentException(str(R.string.missing_wheel, name, radial))
                 Macro(
                     name = name,
                     trigger = trigger(m.getJSONObject("trigger"), name),
@@ -207,13 +209,13 @@ data class MacroConfig(
         private fun color(hex: String): Long {
             if (hex.isBlank()) return DEFAULT_SLICE_COLOR
             val digits = hex.removePrefix("#")
-            val value = digits.toLongOrNull(16) ?: throw IllegalArgumentException("colore non valido \"$hex\"")
+            val value = digits.toLongOrNull(16) ?: throw IllegalArgumentException(str(R.string.bad_color, hex))
             return if (digits.length <= 6) 0xFF000000L or value else value
         }
 
         private fun trigger(t: JSONObject, context: String): Trigger {
             val names = t.getJSONArray("buttons").strings()
-            if (names.isEmpty()) throw IllegalArgumentException("$context: trigger senza pulsanti")
+            if (names.isEmpty()) throw IllegalArgumentException(str(R.string.no_trigger, context))
             val (mask, lt, rt) = buttons(names, context)
             return Trigger(mask, lt, rt, t.optLong("holdMs", 0), t.optBoolean("consume", true))
         }
@@ -230,7 +232,7 @@ data class MacroConfig(
                     a.optDouble("x", 0.0).toFloat(), a.optDouble("y", 0.0).toFloat(), ms,
                 )
                 a.has("wait") -> Action.Wait(a.getLong("wait"))
-                else -> throw IllegalArgumentException("$context: azione sconosciuta $a")
+                else -> throw IllegalArgumentException(str(R.string.unknown_action, context, a.toString()))
             }
         }
 
@@ -243,7 +245,7 @@ data class MacroConfig(
                     Names.LT -> lt = true
                     Names.RT -> rt = true
                     else -> mask = mask or (Names.BUTTONS[name]
-                        ?: throw IllegalArgumentException("$context: pulsante sconosciuto \"$raw\""))
+                        ?: throw IllegalArgumentException(str(R.string.unknown_button, context, raw)))
                 }
             }
             return Triple(mask, lt, rt)
@@ -255,23 +257,23 @@ data class MacroConfig(
             for (raw in names) {
                 val name = raw.uppercase()
                 Names.MODIFIERS[name]?.let { modifiers = modifiers or it } ?: keys.add(
-                    Names.KEYS[name] ?: throw IllegalArgumentException("$context: tasto sconosciuto \"$raw\""),
+                    Names.KEYS[name] ?: throw IllegalArgumentException(str(R.string.unknown_key, context, raw)),
                 )
             }
-            if (keys.size > 6) throw IllegalArgumentException("$context: massimo 6 tasti insieme")
+            if (keys.size > 6) throw IllegalArgumentException(str(R.string.max_keys, context))
             return modifiers to keys
         }
 
         private fun stick(name: String) = when (name.uppercase()) {
             "LEFT", "L" -> Stick.LEFT
             "RIGHT", "R" -> Stick.RIGHT
-            else -> throw IllegalArgumentException("stick sconosciuto \"$name\" (LEFT o RIGHT)")
+            else -> throw IllegalArgumentException(str(R.string.unknown_stick, name))
         }
 
         private fun mode(name: String) = when (name.uppercase()) {
             "HOLD" -> RadialMode.HOLD
             "STICKY" -> RadialMode.STICKY
-            else -> throw IllegalArgumentException("modo ruota sconosciuto \"$name\" (HOLD o STICKY)")
+            else -> throw IllegalArgumentException(str(R.string.unknown_mode, name))
         }
 
         private fun JSONArray?.objects(): List<JSONObject> =
@@ -280,17 +282,18 @@ data class MacroConfig(
         private fun JSONArray.strings(): List<String> = List(length()) { getString(it) }
 
         /** Starting configuration with one example of each feature. */
-        val EXAMPLE = """
+        // Names in the user's language; the structure is the same for everyone.
+        val EXAMPLE: String get() = """
             {
               "macros": [
-                { "name": "Ruota rapida", "trigger": { "buttons": ["L3", "R3"] }, "radial": "rapida" },
+                { "name": "${str(R.string.ex_quick_macro)}", "trigger": { "buttons": ["L3", "R3"] }, "radial": "${str(R.string.ex_quick_id)}" },
                 {
-                  "name": "Screenshot",
+                  "name": "${str(R.string.ex_screenshot)}",
                   "trigger": { "buttons": ["BACK", "Y"], "holdMs": 300 },
                   "actions": [ { "keys": ["WIN", "PRINTSCREEN"], "ms": 80 } ]
                 },
                 {
-                  "name": "Turbo A",
+                  "name": "${str(R.string.ex_turbo)}",
                   "trigger": { "buttons": ["LB", "A"] },
                   "repeat": true,
                   "actions": [ { "press": ["A"], "ms": 40 }, { "wait": 40 } ]
@@ -298,15 +301,15 @@ data class MacroConfig(
               ],
               "radials": [
                 {
-                  "id": "rapida",
+                  "id": "${str(R.string.ex_quick_id)}",
                   "stick": "RIGHT",
                   "slices": [
-                    { "label": "Cura", "icon": "❤️", "color": "#C2373D", "actions": [ { "keys": ["1"] } ] },
-                    { "label": "Granata", "icon": "💣", "color": "#B7652A", "actions": [ { "keys": ["G"] } ] },
-                    { "label": "Mappa", "icon": "🗺️", "color": "#2E7D4F", "actions": [ { "keys": ["M"] } ] },
-                    { "label": "Salva", "icon": "💾", "color": "#2F5FA8", "actions": [ { "keys": ["F5"] } ] },
-                    { "label": "Ricarica", "icon": "🔄", "color": "#6B4BB8", "actions": [ { "press": ["X"], "ms": 80 } ] },
-                    { "label": "Menu", "icon": "⏸️", "color": "#55595F", "actions": [ { "keys": ["ESC"] } ] }
+                    { "label": "${str(R.string.ex_heal)}", "icon": "❤️", "color": "#C2373D", "actions": [ { "keys": ["1"] } ] },
+                    { "label": "${str(R.string.ex_grenade)}", "icon": "💣", "color": "#B7652A", "actions": [ { "keys": ["G"] } ] },
+                    { "label": "${str(R.string.ex_map)}", "icon": "🗺️", "color": "#2E7D4F", "actions": [ { "keys": ["M"] } ] },
+                    { "label": "${str(R.string.ex_save)}", "icon": "💾", "color": "#2F5FA8", "actions": [ { "keys": ["F5"] } ] },
+                    { "label": "${str(R.string.ex_reload)}", "icon": "🔄", "color": "#6B4BB8", "actions": [ { "press": ["X"], "ms": 80 } ] },
+                    { "label": "${str(R.string.ex_menu)}", "icon": "⏸️", "color": "#55595F", "actions": [ { "keys": ["ESC"] } ] }
                   ]
                 }
               ]

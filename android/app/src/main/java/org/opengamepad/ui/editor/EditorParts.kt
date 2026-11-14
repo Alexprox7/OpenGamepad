@@ -1,5 +1,12 @@
 package org.opengamepad.ui.editor
 
+import org.opengamepad.str
+import org.opengamepad.R
+import org.opengamepad.ui.Accent
+import org.opengamepad.ui.Danger
+import org.opengamepad.ui.Ink
+import org.opengamepad.ui.LocalPalette
+import org.opengamepad.ui.Muted
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,9 +54,6 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-val Muted = Color(0xFF8A91A0)
-val Panel = Color(0xFF30343D)
-
 /** Order in which controller buttons are offered. */
 private val BUTTON_ORDER = listOf(
     "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "L3", "R3",
@@ -65,7 +69,7 @@ fun describeButtons(mask: Int, lt: Boolean, rt: Boolean): String {
             else -> mask and Names.BUTTONS.getValue(name) != 0
         }
     }
-    return if (names.isEmpty()) "nessun pulsante" else names.joinToString(" + ") { BUTTON_LABELS[it] ?: it }
+    return if (names.isEmpty()) str(R.string.no_buttons) else names.joinToString(" + ") { BUTTON_LABELS[it] ?: it }
 }
 
 /** Controller buttons as toggle chips (LT/RT included). */
@@ -96,30 +100,30 @@ fun ButtonChips(mask: Int, lt: Boolean, rt: Boolean, onChange: (Int, Boolean, Bo
 
 private val MODIFIERS = listOf("CTRL" to 0x01, "SHIFT" to 0x02, "ALT" to 0x04, "WIN" to 0x08)
 
-private val KEY_GROUPS: List<Pair<String, List<String>>> = listOf(
-    "Lettere" to ('A'..'Z').map { it.toString() },
-    "Numeri" to ('0'..'9').map { it.toString() },
-    "Funzione" to (1..24).map { "F$it" },
-    "Speciali" to listOf("ESC", "ENTER", "SPACE", "TAB", "BACKSPACE", "CAPSLOCK", "PRINTSCREEN", "PAUSE", "SCROLLLOCK"),
-    "Navigazione" to listOf("ARROWUP", "ARROWDOWN", "ARROWLEFT", "ARROWRIGHT", "INSERT", "DELETE", "HOME", "END", "PAGEUP", "PAGEDOWN"),
-    "Simboli" to listOf("MINUS", "EQUAL", "LBRACKET", "RBRACKET", "BACKSLASH", "SEMICOLON", "QUOTE", "GRAVE", "COMMA", "PERIOD", "SLASH"),
+private val KEY_GROUPS: List<Pair<Int, List<String>>> = listOf(
+    R.string.keys_letters to ('A'..'Z').map { it.toString() },
+    R.string.keys_numbers to ('0'..'9').map { it.toString() },
+    R.string.keys_function to (1..24).map { "F$it" },
+    R.string.keys_special to listOf("ESC", "ENTER", "SPACE", "TAB", "BACKSPACE", "CAPSLOCK", "PRINTSCREEN", "PAUSE", "SCROLLLOCK"),
+    R.string.keys_navigation to listOf("ARROWUP", "ARROWDOWN", "ARROWLEFT", "ARROWRIGHT", "INSERT", "DELETE", "HOME", "END", "PAGEUP", "PAGEDOWN"),
+    R.string.keys_symbols to listOf("MINUS", "EQUAL", "LBRACKET", "RBRACKET", "BACKSLASH", "SEMICOLON", "QUOTE", "GRAVE", "COMMA", "PERIOD", "SLASH"),
 )
 
 private fun keyLabel(name: String) = when (name) {
     "ARROWUP" -> "↑"; "ARROWDOWN" -> "↓"; "ARROWLEFT" -> "←"; "ARROWRIGHT" -> "→"
     "MINUS" -> "-"; "EQUAL" -> "="; "LBRACKET" -> "["; "RBRACKET" -> "]"; "BACKSLASH" -> "\\"
     "SEMICOLON" -> ";"; "QUOTE" -> "'"; "GRAVE" -> "`"; "COMMA" -> ","; "PERIOD" -> "."; "SLASH" -> "/"
-    "SPACE" -> "Spazio"; "BACKSPACE" -> "⌫"; "PRINTSCREEN" -> "Stamp"
+    "SPACE" -> str(R.string.key_space); "BACKSPACE" -> "⌫"; "PRINTSCREEN" -> str(R.string.key_print)
     else -> name
 }
 
 fun describeKeys(modifiers: Int, keys: List<Int>): String {
     val names = MODIFIERS.filter { modifiers and it.second != 0 }.map { it.first } +
         keys.mapNotNull { k -> Names.KEYS.entries.firstOrNull { it.value == k }?.key?.let(::keyLabel) }
-    return if (names.isEmpty()) "nessun tasto" else names.joinToString(" + ")
+    return if (names.isEmpty()) str(R.string.no_keys) else names.joinToString(" + ")
 }
 
-/** PC key combination: modifier chips, chosen keys (tap to remove), "+ Tasto" picker. */
+/** PC key combination: modifier chips, chosen keys (tap to remove), str(R.string.add_key) picker. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun KeyChips(modifiers: Int, keys: List<Int>, onChange: (Int, List<Int>) -> Unit) {
@@ -140,7 +144,7 @@ fun KeyChips(modifiers: Int, keys: List<Int>, onChange: (Int, List<Int>) -> Unit
                 label = { Text("${keyLabel(name)}  ✕") },
             )
         }
-        if (keys.size < 6) AssistChip(onClick = { picking = true }, label = { Text("+ Tasto") })
+        if (keys.size < 6) AssistChip(onClick = { picking = true }, label = { Text(str(R.string.add_key)) })
     }
     if (picking) {
         KeyPickerDialog(
@@ -158,8 +162,8 @@ fun KeyChips(modifiers: Int, keys: List<Int>, onChange: (Int, List<Int>) -> Unit
 fun KeyPickerDialog(onPick: (Int) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } },
-        title = { Text("Scegli un tasto") },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(str(R.string.close)) } },
+        title = { Text(str(R.string.pick_key)) },
         text = {
             Column(
                 Modifier
@@ -168,7 +172,7 @@ fun KeyPickerDialog(onPick: (Int) -> Unit, onDismiss: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 KEY_GROUPS.forEach { (group, names) ->
-                    Text(group, color = Muted, fontSize = 12.sp)
+                    Text(str(group), color = Muted, fontSize = 12.sp)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         names.forEach { name ->
                             AssistChip(onClick = { onPick(Names.KEYS.getValue(name)) }, label = { Text(keyLabel(name)) })
@@ -204,7 +208,7 @@ private val DIRECTIONS = listOf("↑", "↗", "→", "↘", "↓", "↙", "←",
 @Composable
 fun ActionListEditor(actions: List<Action>, onChange: (List<Action>) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (actions.isEmpty()) Text("Nessuna azione: aggiungine una qui sotto.", color = Muted)
+        if (actions.isEmpty()) Text(str(R.string.no_actions), color = Muted)
         actions.forEachIndexed { index, action ->
             fun replace(new: Action) = onChange(actions.toMutableList().also { it[index] = new })
             fun move(delta: Int) {
@@ -215,19 +219,21 @@ fun ActionListEditor(actions: List<Action>, onChange: (List<Action>) -> Unit) {
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .border(BorderStroke(1.dp, Panel), RoundedCornerShape(10.dp))
-                    .padding(10.dp),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(LocalPalette.current.surfaceHigh)
+                    .border(BorderStroke(1.dp, LocalPalette.current.outline), RoundedCornerShape(12.dp))
+                    .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "${index + 1}. " + when (action) {
-                            is Action.Press -> "Pulsanti controller"
-                            is Action.Keys -> "Tasti PC"
-                            is Action.Move -> "Stick"
-                            is Action.Wait -> "Attesa"
+                            is Action.Press -> str(R.string.act_press)
+                            is Action.Keys -> str(R.string.act_keys)
+                            is Action.Move -> str(R.string.act_stick)
+                            is Action.Wait -> str(R.string.act_wait)
                         },
-                        color = Color.White,
+                        color = Ink,
                         fontWeight = FontWeight.Bold,
                     )
                     val ms = when (action) {
@@ -245,10 +251,10 @@ fun ActionListEditor(actions: List<Action>, onChange: (List<Action>) -> Unit) {
                                 is Action.Wait -> action.copy(ms = v)
                             },
                         )
-                    }, label = if (action is Action.Wait) "attesa ms" else "durata ms")
+                    }, label = if (action is Action.Wait) str(R.string.wait_ms) else str(R.string.duration_ms))
                     TextButton(onClick = { move(-1) }, enabled = index > 0) { Text("↑") }
                     TextButton(onClick = { move(1) }, enabled = index < actions.lastIndex) { Text("↓") }
-                    TextButton(onClick = { onChange(actions.filterIndexed { i, _ -> i != index }) }) { Text("Elimina") }
+                    TextButton(onClick = { onChange(actions.filterIndexed { i, _ -> i != index }) }) { Text(str(R.string.delete), color = Danger) }
                 }
                 when (action) {
                     is Action.Press -> ButtonChips(action.buttons, action.leftTrigger, action.rightTrigger) { m, lt, rt ->
@@ -262,7 +268,7 @@ fun ActionListEditor(actions: List<Action>, onChange: (List<Action>) -> Unit) {
                             FilterChip(
                                 selected = action.stick == stick,
                                 onClick = { replace(action.copy(stick = stick)) },
-                                label = { Text(if (stick == Stick.LEFT) "Stick sinistro" else "Stick destro") },
+                                label = { Text(if (stick == Stick.LEFT) str(R.string.stick_left) else str(R.string.stick_right)) },
                             )
                         }
                         DIRECTIONS.forEachIndexed { i, arrow ->
@@ -281,10 +287,10 @@ fun ActionListEditor(actions: List<Action>, onChange: (List<Action>) -> Unit) {
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AssistChip(onClick = { onChange(actions + Action.Press(0, false, false, 80)) }, label = { Text("+ Pulsanti controller") })
-            AssistChip(onClick = { onChange(actions + Action.Keys(0, emptyList(), 80)) }, label = { Text("+ Tasti PC") })
-            AssistChip(onClick = { onChange(actions + Action.Move(Stick.LEFT, 0f, 1f, 300)) }, label = { Text("+ Stick") })
-            AssistChip(onClick = { onChange(actions + Action.Wait(100)) }, label = { Text("+ Attesa") })
+            AssistChip(onClick = { onChange(actions + Action.Press(0, false, false, 80)) }, label = { Text("+ " + str(R.string.act_press)) })
+            AssistChip(onClick = { onChange(actions + Action.Keys(0, emptyList(), 80)) }, label = { Text("+ " + str(R.string.act_keys)) })
+            AssistChip(onClick = { onChange(actions + Action.Move(Stick.LEFT, 0f, 1f, 300)) }, label = { Text("+ " + str(R.string.act_stick)) })
+            AssistChip(onClick = { onChange(actions + Action.Wait(100)) }, label = { Text("+ " + str(R.string.act_wait)) })
         }
     }
 }
@@ -308,7 +314,7 @@ fun EmojiPicker(selected: String, onPick: (String) -> Unit) {
                     Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (emoji == selected) Panel else Color.Transparent)
+                        .background(if (emoji == selected) Accent.copy(alpha = 0.25f) else Color.Transparent)
                         .clickable { onPick(emoji) },
                     contentAlignment = Alignment.Center,
                 ) { Text(emoji, fontSize = 22.sp) }
@@ -317,7 +323,7 @@ fun EmojiPicker(selected: String, onPick: (String) -> Unit) {
         OutlinedTextField(
             value = selected,
             onValueChange = { onPick(it.take(4)) },
-            label = { Text("Oppure scrivi un'icona/testo") },
+            label = { Text(str(R.string.icon_or_text)) },
             singleLine = true,
             modifier = Modifier.width(260.dp),
         )
@@ -339,7 +345,7 @@ fun ColorPalette(selected: Long, onPick: (Long) -> Unit) {
                     .size(34.dp)
                     .clip(CircleShape)
                     .background(Color(color))
-                    .border(if (color == selected) 3.dp else 1.dp, if (color == selected) Color.White else Panel, CircleShape)
+                    .border(if (color == selected) 3.dp else 1.dp, if (color == selected) Color.White else LocalPalette.current.outline, CircleShape)
                     .clickable { onPick(color) },
             )
         }

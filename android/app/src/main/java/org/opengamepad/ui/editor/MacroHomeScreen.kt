@@ -1,5 +1,22 @@
 package org.opengamepad.ui.editor
 
+import org.opengamepad.str
+import org.opengamepad.R
+import org.opengamepad.ui.Faint
+import org.opengamepad.ui.Ink
+import org.opengamepad.ui.KeyCaps
+import org.opengamepad.ui.ListRow
+import org.opengamepad.ui.LocalPalette
+import org.opengamepad.ui.Muted
+import org.opengamepad.ui.ScreenHeader
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.text.font.FontWeight
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,6 +66,7 @@ private sealed interface Editing {
  * Entry point of the visual editor: lists macros and radial menus.
  * [dynamicRadials]: menus built at runtime, offered as wheels to open and as folder targets.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MacroHomeScreen(
     config: MacroConfig,
@@ -89,7 +107,7 @@ fun MacroHomeScreen(
                 initial = existing ?: newRadial(uniqueId(config)),
                 takenIds = config.radials.keys,
                 folderTargets = radialIds,
-                trail = stack.filterIsInstance<Editing.Radial>().map { it.id ?: "nuova" },
+                trail = stack.filterIsInstance<Editing.Radial>().map { it.id ?: str(R.string.new_trail) },
                 onSave = { menu -> onConfig(saveRadial(config, e.id, menu)); pop() },
                 onDelete = if (existing != null) {
                     { onConfig(deleteRadial(config, existing.id)); pop() }
@@ -116,114 +134,114 @@ fun MacroHomeScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(LocalPalette.current.background)
+            .windowInsetsPadding(WindowInsets.displayCutout)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Macro e ruote", color = Color.White, fontSize = 24.sp)
-            OutlinedButton(onClick = onClose) { Text("Chiudi") }
-            OutlinedButton(onClick = onAdvanced) { Text("Avanzate (JSON)") }
+        ScreenHeader(str(R.string.nav_macros), onBack = onClose) {
+            OutlinedButton(onClick = onAdvanced) { Text(str(R.string.advanced)) }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Finestra combinazioni:", color = Muted)
-            listOf(0L, 30L, 50L, 80L, 120L).forEach { ms ->
-                FilterChip(
-                    selected = config.comboWindowMs == ms,
-                    onClick = { onConfig(config.copy(comboWindowMs = ms)) },
-                    label = { Text(if (ms == 0L) "off" else "$ms ms") },
-                )
+        // Macros
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.align(Alignment.CenterVertically)) {
+                Text(str(R.string.nav_macros_short), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(str(R.string.macros_sub), color = Muted, fontSize = 12.sp)
             }
+            Button(onClick = { stack = listOf(Editing.MacroAt(-1)) }) { Text(str(R.string.new_macro)) }
         }
-        Text(
-            "Il primo pulsante di una combinazione (es. L3 di L3+R3) aspetta questo tempo prima di arrivare " +
-                "al gioco, così premendo i due pulsanti quasi insieme il gioco non riceve L3 da solo.",
-            color = Muted,
-            fontSize = 12.sp,
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Macro", color = Muted, fontSize = 14.sp)
-            Button(onClick = { stack = listOf(Editing.MacroAt(-1)) }) { Text("+ Nuova macro") }
-        }
-        if (config.macros.isEmpty()) Text("Nessuna macro.", color = Muted)
+        if (config.macros.isEmpty()) EmptyHint(str(R.string.no_macros))
         config.macros.forEachIndexed { index, macro ->
-            Card(onClick = { stack = listOf(Editing.MacroAt(index)) }) {
-                Column(Modifier.weight(1f)) {
-                    Text(macro.name, color = Color.White, fontSize = 17.sp)
-                    Text(
-                        describeButtons(macro.trigger.buttons, macro.trigger.leftTrigger, macro.trigger.rightTrigger) +
-                            "  →  " + describeOutput(macro),
-                        color = Muted,
-                    )
+            ListRow(onClick = { stack = listOf(Editing.MacroAt(index)) }) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(macro.name, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    KeyCaps(describeButtons(macro.trigger.buttons, macro.trigger.leftTrigger, macro.trigger.rightTrigger))
+                    Text("→ " + describeOutput(macro), color = Muted, fontSize = 13.sp)
                 }
-                Text("Modifica ›", color = Muted)
+                Text("›", color = Faint, fontSize = 24.sp)
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Ruote radiali", color = Muted, fontSize = 14.sp)
-            Button(onClick = { stack = listOf(Editing.Radial(null)) }) { Text("+ Nuova ruota") }
+        // Radial menus
+        Spacer(Modifier.height(4.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.align(Alignment.CenterVertically)) {
+                Text(str(R.string.wheels), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(str(R.string.wheels_sub), color = Muted, fontSize = 12.sp)
+            }
+            Button(onClick = { stack = listOf(Editing.Radial(null)) }) { Text(str(R.string.new_wheel)) }
         }
-        if (config.radials.isEmpty()) Text("Nessuna ruota.", color = Muted)
+        if (config.radials.isEmpty()) EmptyHint(str(R.string.no_wheels))
         config.radials.values.forEach { menu ->
             val opener = config.macros.firstOrNull { it.radial == menu.id }
             val parent = config.radials.values.firstOrNull { r -> r.slices.any { it.submenu == menu.id } }
-            Card(onClick = { stack = listOf(Editing.Radial(menu.id)) }) {
+            ListRow(onClick = { stack = listOf(Editing.Radial(menu.id)) }) {
                 RadialWheel(menu, null, Modifier.size(96.dp), scale = 0.35f)
-                Column(Modifier.weight(1f)) {
-                    Text(menu.id, color = Color.White, fontSize = 17.sp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(menu.id, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "${menu.slices.size} spicchi · " +
-                            (if (menu.mode == RadialMode.STICKY) "resta aperta · " else "") +
-                            when {
-                                opener != null -> "si apre con " +
-                                    describeButtons(opener.trigger.buttons, opener.trigger.leftTrigger, opener.trigger.rightTrigger)
-                                parent != null -> "sotto-ruota di \"${parent.id}\""
-                                else -> "nessuna combinazione: assegnala da una macro"
-                            },
+                        str(R.string.wheel_info, menu.slices.size, str(if (menu.mode == RadialMode.STICKY) R.string.mode_sticky else R.string.mode_hold)),
                         color = Muted,
+                        fontSize = 13.sp,
+                    )
+                    when {
+                        opener != null -> KeyCaps(
+                            describeButtons(opener.trigger.buttons, opener.trigger.leftTrigger, opener.trigger.rightTrigger),
+                        )
+                        parent != null -> Text(str(R.string.sub_wheel_of, parent.id), color = Muted, fontSize = 13.sp)
+                        else -> Text(str(R.string.no_combo), color = Faint, fontSize = 13.sp)
+                    }
+                }
+                Text("›", color = Faint, fontSize = 24.sp)
+            }
+        }
+
+        // Combo window
+        Spacer(Modifier.height(4.dp))
+        org.opengamepad.ui.Card("⏱", str(R.string.combo_window), str(R.string.combo_window_sub), Modifier.fillMaxWidth()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0L, 30L, 50L, 80L, 120L).forEach { ms ->
+                    FilterChip(
+                        selected = config.comboWindowMs == ms,
+                        onClick = { onConfig(config.copy(comboWindowMs = ms)) },
+                        label = { Text(if (ms == 0L) str(R.string.off) else "$ms ms") },
                     )
                 }
-                Text("Modifica ›", color = Muted)
             }
+            Text(
+                str(R.string.combo_window_note),
+                color = Faint,
+                fontSize = 12.sp,
+            )
         }
     }
 }
 
 @Composable
-private fun Card(onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .border(1.dp, Panel, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
+private fun EmptyHint(text: String) {
+    Text(text, color = Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
 }
 
 private fun describeOutput(macro: Macro): String {
-    macro.radial?.let { return "ruota \"$it\"" }
+    macro.radial?.let { return str(R.string.out_wheel, it) }
     val steps = macro.actions.joinToString(", ") { a ->
         when (a) {
             is Action.Press -> describeButtons(a.buttons, a.leftTrigger, a.rightTrigger)
             is Action.Keys -> describeKeys(a.modifiers, a.keys)
-            is Action.Move -> "stick ${if (a.stick.name == "LEFT") "sx" else "dx"}"
-            is Action.Wait -> "attesa ${a.ms} ms"
+            is Action.Move -> str(if (a.stick.name == "LEFT") R.string.stick_left else R.string.stick_right)
+            is Action.Wait -> str(R.string.out_wait, a.ms)
         }
     }
-    return (if (macro.repeat) "turbo: " else "") + steps.ifEmpty { "nessuna azione" }
+    val text = steps.ifEmpty { str(R.string.no_action) }
+    return if (macro.repeat) str(R.string.out_turbo, text) else text
 }
 
 /** [base] when free (e.g. the label of the folder slice), otherwise "ruota N". */
 private fun uniqueId(config: MacroConfig, base: String = ""): String =
     base.trim().takeIf { it.isNotEmpty() && it !in config.radials && !it.startsWith(DYNAMIC_RADIAL_PREFIX) }
-        ?: generateSequence(1) { it + 1 }.map { "ruota $it" }.first { it !in config.radials }
+        ?: generateSequence(1) { it + 1 }.map { str(R.string.wheel_n, it) }.first { it !in config.radials }
 
 /** Saves a radial menu, renaming references when its name changed. */
 private fun saveRadial(config: MacroConfig, oldId: String?, menu: RadialMenu): MacroConfig {

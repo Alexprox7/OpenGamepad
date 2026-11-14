@@ -37,12 +37,8 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
 
-// Pitch-black theme: on OLED panels black pixels are off, so controls are drawn
-// as thin dim outlines and only lit while pressed.
-private val Surface = Color.Black
-private val SurfacePressed = Color(0xFF262A33)
-private val Outline = Color(0xFF30343D)
-private val Knob = Color(0xFF3A3F4A)
+// Controls are drawn with the theme's surfaces: a soft fill in the dark theme, near-black on OLED,
+// and lit only while pressed.
 
 /** Momentary button: [onChange] receives true on press and false on release. */
 @Composable
@@ -51,19 +47,20 @@ fun PadButton(
     onChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     shape: Shape = CircleShape,
-    color: Color = Color.White,
+    color: Color = Color.Unspecified,
     fontSize: Int = 18,
     /** On/off buttons: blue border and fill while on (emoji labels cannot change colour). */
     selected: Boolean = false,
 ) {
     val view = LocalView.current
+    val p = LocalPalette.current
     val callback by rememberUpdatedState(onChange)
     var pressed by remember { mutableStateOf(false) }
     Box(
         modifier
             .clip(shape)
-            .background(if (pressed) SurfacePressed else if (selected) Accent.copy(alpha = 0.22f) else Surface)
-            .border(if (selected) 2.dp else 1.dp, if (selected) Accent else Outline, shape)
+            .background(if (pressed) p.pressed else if (selected) Accent.copy(alpha = 0.22f) else p.surface)
+            .border(if (selected) 2.dp else 1.dp, if (selected) Accent else if (pressed) p.knob else p.outline, shape)
             .pointerInput(Unit) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
@@ -77,7 +74,8 @@ fun PadButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = color.copy(alpha = 0.7f), fontSize = fontSize.sp, fontWeight = FontWeight.Bold)
+        val ink = if (color == Color.Unspecified) p.text else color
+        Text(label, color = ink.copy(alpha = if (pressed) 1f else 0.75f), fontSize = fontSize.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -89,6 +87,7 @@ fun Stick(
     size: Dp = 150.dp,
 ) {
     val callback by rememberUpdatedState(onMove)
+    val p = LocalPalette.current
     var knob by remember { mutableStateOf(Offset.Zero) }
     Canvas(
         modifier
@@ -113,8 +112,11 @@ fun Stick(
             },
     ) {
         val radius = min(this.size.width, this.size.height) / 2f
-        drawCircle(Outline, radius - 1f, style = Stroke(2f))
-        drawCircle(Knob, radius * 0.38f, center + knob)
+        drawCircle(p.surface, radius - 1f)
+        drawCircle(p.outline, radius - 1f, style = Stroke(2f))
+        // Rest area: where the thumb starts.
+        drawCircle(p.outline.copy(alpha = 0.6f), radius * 0.38f, style = Stroke(1.5f))
+        drawCircle(if (knob == Offset.Zero) p.knob else Accent.copy(alpha = 0.85f), radius * 0.36f, center + knob)
     }
 }
 
@@ -126,6 +128,7 @@ fun DPad(
     size: Dp = 140.dp,
 ) {
     val view = LocalView.current
+    val p = LocalPalette.current
     val callback by rememberUpdatedState(onChange)
     var current by remember { mutableStateOf(0) }
     Canvas(
@@ -153,13 +156,12 @@ fun DPad(
             },
     ) {
         val arm = this.size.width / 3f
-        fun arm(x: Float, y: Float, on: Boolean) = drawRoundRect(
-            if (on) Knob else Outline,
-            topLeft = Offset(x, y),
-            size = androidx.compose.ui.geometry.Size(arm, arm),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f),
-            style = if (on) androidx.compose.ui.graphics.drawscope.Fill else Stroke(2f),
-        )
+        fun arm(x: Float, y: Float, on: Boolean) {
+            val size = androidx.compose.ui.geometry.Size(arm, arm)
+            val corner = androidx.compose.ui.geometry.CornerRadius(10f)
+            drawRoundRect(if (on) p.pressed else p.surface, Offset(x, y), size, corner)
+            drawRoundRect(if (on) Accent.copy(alpha = 0.85f) else p.outline, Offset(x, y), size, corner, style = Stroke(2f))
+        }
         arm(arm, 0f, current and Buttons.DPAD_UP != 0)
         arm(arm, arm * 2, current and Buttons.DPAD_DOWN != 0)
         arm(0f, arm, current and Buttons.DPAD_LEFT != 0)
