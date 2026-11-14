@@ -155,7 +155,13 @@ rescans the SD card). For source 1, `id` is the 8 bytes at 0x54 of the dump and 
 (bytes 0–2 and 4–7); names are at most 63 bytes. The sysmodule creates
 `emuiibo/amiibo/OpenGamepad/[group/]name/` with `amiibo.json` and `amiibo.flag` the first time
 (`game_character_id` = id[0] | id[1] << 8, `model_number` = id[4] << 8 | id[5], as emuiibo's own
-conversion), then sets it active, turns emulation on and connects it. Type 23 is reserved.
+conversion), then sets it active, turns emulation on and connects it.
+
+### 23 – Motion recentre (OpenGamepad extension, Switch sysmodule)
+
+Phone → console over TCP, no payload, sent by ◎ while the motion sensor is on. The controller's angle is
+integrated from the position the phone had when the controller was created and games read it as the
+controller's orientation; this message resets it, so the current position becomes neutral.
 
 ## LAN discovery
 
