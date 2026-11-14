@@ -5,6 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -17,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.opengamepad.input.GamepadInput
@@ -26,7 +31,10 @@ import org.opengamepad.protocol.ControllerState
 
 private val DPAD_MASK = Buttons.DPAD_UP or Buttons.DPAD_DOWN or Buttons.DPAD_LEFT or Buttons.DPAD_RIGHT
 
-/** Standard Xbox-style layout. [blackout] draws a black layer while controls stay active. */
+/**
+ * Xbox-style layout in landscape, Game Boy-style ([PortraitLayout]) when the screen is taller than
+ * wide. [blackout] draws a black layer while controls stay active.
+ */
 @Composable
 fun ControllerScreen(
     input: GamepadInput,
@@ -54,12 +62,43 @@ fun ControllerScreen(
     onAmiibo: (() -> Unit)? = null,
 ) {
     fun button(mask: Int): (Boolean) -> Unit = { down -> input.touch { it.with(mask, down) } }
+    // Screen saver, disconnect and the on/off functions, shared by both layouts.
+    val systemButtons: @Composable () -> Unit = {
+        PadButton("☾", { if (it) onScreenSaver() }, Modifier.size(44.dp), fontSize = 20)
+        PadButton("✕", { if (it) onDisconnect() }, Modifier.size(44.dp), fontSize = 16)
+        // Tilt steering on/off, and re-centre while it is on.
+        if (onSteering != null) {
+            PadButton("⎈", { if (it) onSteering() }, Modifier.size(44.dp), fontSize = 20,
+                color = if (steering) Accent else Color.White, selected = steering)
+        }
+        if (onMotionSensor != null) {
+            PadButton("⟲", { if (it) onMotionSensor() }, Modifier.size(44.dp), fontSize = 20,
+                color = if (motionSensor) Accent else Color.White, selected = motionSensor)
+        }
+        // Motion axes per game: kart for Mario Kart, top hat (Cappy) for Super Mario Odyssey.
+        if (axisPreset != null) {
+            for ((preset, icon) in listOf(org.opengamepad.motion.AxisPreset.KART to "🏎",
+                org.opengamepad.motion.AxisPreset.CAPPY to "🎩")) {
+                PadButton(icon, { if (it) onAxisPreset(preset) }, Modifier.size(44.dp), fontSize = 18,
+                    selected = axisPreset == preset)
+            }
+        }
+        if (onRumble != null) {
+            PadButton("📳", { if (it) onRumble() }, Modifier.size(44.dp), fontSize = 16, selected = rumble)
+        }
+        // Centre: the current position becomes neutral (tilt steering or motion sensor).
+        if (steering || motionSensor) PadButton("◎", { if (it) onRecenter() }, Modifier.size(44.dp), fontSize = 18, color = Accent)
+        if (onAmiibo != null) PadButton("NFC", { if (it) onAmiibo() }, Modifier.size(44.dp), fontSize = 12)
+    }
 
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .background(Color.Black),
     ) {
+        if (maxHeight > maxWidth) {
+            PortraitLayout(input, status, nintendoLayout, maxWidth, systemButtons, ::button)
+        } else {
         val stick = (maxHeight * 0.42f).coerceAtMost(190.dp)
         val face = (maxHeight * 0.14f).coerceIn(48.dp, 72.dp)
 
@@ -82,31 +121,7 @@ fun ControllerScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                PadButton("☾", { if (it) onScreenSaver() }, Modifier.size(44.dp), fontSize = 20)
-                PadButton("✕", { if (it) onDisconnect() }, Modifier.size(44.dp), fontSize = 16)
-                // Tilt steering on/off, and re-centre while it is on.
-                if (onSteering != null) {
-                    PadButton("⎈", { if (it) onSteering() }, Modifier.size(44.dp), fontSize = 20,
-                        color = if (steering) Accent else Color.White, selected = steering)
-                }
-                if (onMotionSensor != null) {
-                    PadButton("⟲", { if (it) onMotionSensor() }, Modifier.size(44.dp), fontSize = 20,
-                        color = if (motionSensor) Accent else Color.White, selected = motionSensor)
-                }
-                // Motion axes per game: kart for Mario Kart, top hat (Cappy) for Super Mario Odyssey.
-                if (axisPreset != null) {
-                    for ((preset, icon) in listOf(org.opengamepad.motion.AxisPreset.KART to "🏎",
-                        org.opengamepad.motion.AxisPreset.CAPPY to "🎩")) {
-                        PadButton(icon, { if (it) onAxisPreset(preset) }, Modifier.size(44.dp), fontSize = 18,
-                            selected = axisPreset == preset)
-                    }
-                }
-                if (onRumble != null) {
-                    PadButton("📳", { if (it) onRumble() }, Modifier.size(44.dp), fontSize = 16, selected = rumble)
-                }
-                // Centre: the current position becomes neutral (tilt steering or motion sensor).
-                if (steering || motionSensor) PadButton("◎", { if (it) onRecenter() }, Modifier.size(44.dp), fontSize = 18, color = Accent)
-                if (onAmiibo != null) PadButton("NFC", { if (it) onAmiibo() }, Modifier.size(44.dp), fontSize = 12)
+                systemButtons()
             }
             Text(status, color = Color(0xFF8A91A0), fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -144,6 +159,7 @@ fun ControllerScreen(
         )
         PadButton("R3", button(Buttons.RIGHT_THUMB),
             Modifier.align(Alignment.BottomEnd).offset(x = (-20).dp, y = (-18).dp).size(48.dp), fontSize = 13)
+        }
 
         // Drawn last, without pointer input: touches still reach the controls underneath.
         if (blackout) Box(Modifier.fillMaxSize().background(Color.Black))
@@ -151,6 +167,74 @@ fun ControllerScreen(
         radial?.let {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f)))
             RadialMenuOverlay(it, nintendoLayout = nintendoLayout, onTap = onRadialTap, onBack = onRadialBack)
+        }
+    }
+}
+
+/** Vertical, Game Boy-style layout: functions and status on top, controls in the lower part. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PortraitLayout(
+    input: GamepadInput,
+    status: String,
+    nintendoLayout: Boolean,
+    width: Dp,
+    systemButtons: @Composable () -> Unit,
+    button: (Int) -> (Boolean) -> Unit,
+) {
+    val stick = (width * 0.40f).coerceAtMost(170.dp)
+    val face = (width * 0.15f).coerceIn(48.dp, 68.dp)
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) { systemButtons() }
+        Text(status, color = Color(0xFF8A91A0), fontSize = 12.sp)
+        Spacer(Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PadButton(if (nintendoLayout) "ZL" else "LT", { d -> input.touch { it.copy(leftTrigger = if (d) 255 else 0) } },
+                    Modifier.width(72.dp).height(48.dp), TriggerShape)
+                PadButton(if (nintendoLayout) "L" else "LB", button(Buttons.LEFT_SHOULDER), Modifier.width(72.dp).height(48.dp), PillShape)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PadButton(if (nintendoLayout) "R" else "RB", button(Buttons.RIGHT_SHOULDER), Modifier.width(72.dp).height(48.dp), PillShape)
+                PadButton(if (nintendoLayout) "ZR" else "RT", { d -> input.touch { it.copy(rightTrigger = if (d) 255 else 0) } },
+                    Modifier.width(72.dp).height(48.dp), TriggerShape)
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Stick(
+                onMove = { x, y -> input.touch { it.copy(leftX = ControllerState.axis(x), leftY = ControllerState.axis(y)) } },
+                size = stick,
+            )
+            Stick(
+                onMove = { x, y -> input.touch { it.copy(rightX = ControllerState.axis(x), rightY = ControllerState.axis(y)) } },
+                size = stick * 0.85f,
+            )
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            DPad(
+                onChange = { mask -> input.touch { it.copy(buttons = (it.buttons and DPAD_MASK.inv()) or mask) } },
+                size = stick * 0.9f,
+            )
+            Box(Modifier.size(face * 3)) {
+                PadButton(if (nintendoLayout) "X" else "Y", button(Buttons.Y), Modifier.align(Alignment.TopCenter).size(face), color = Color(0xFFF2C94C))
+                PadButton(if (nintendoLayout) "Y" else "X", button(Buttons.X), Modifier.align(Alignment.CenterStart).size(face), color = Color(0xFF56A8F5))
+                PadButton(if (nintendoLayout) "A" else "B", button(Buttons.B), Modifier.align(Alignment.CenterEnd).size(face), color = Color(0xFFEB5757))
+                PadButton(if (nintendoLayout) "B" else "A", button(Buttons.A), Modifier.align(Alignment.BottomCenter).size(face), color = Color(0xFF6FCF97))
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            PadButton("L3", button(Buttons.LEFT_THUMB), Modifier.size(48.dp), fontSize = 13)
+            PadButton(if (nintendoLayout) "−" else "⧉", button(Buttons.BACK), Modifier.size(46.dp))
+            PadButton("⊙", button(Buttons.GUIDE), Modifier.size(52.dp), fontSize = 22)
+            PadButton(if (nintendoLayout) "+" else "☰", button(Buttons.START), Modifier.size(46.dp))
+            PadButton("R3", button(Buttons.RIGHT_THUMB), Modifier.size(48.dp), fontSize = 13)
         }
     }
 }

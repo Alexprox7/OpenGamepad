@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -78,6 +79,8 @@ fun ConnectScreen(
     amiibo: (@Composable () -> Unit)? = null,
 ) {
     var target by remember { mutableStateOf(initialTarget) }
+    // Portrait (Game Boy layout): the cards go one under the other.
+    val narrow = LocalConfiguration.current.screenWidthDp < 600
     Column(
         Modifier
             .fillMaxSize()
@@ -87,20 +90,26 @@ fun ConnectScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         // Header
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        FlowRow(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
             Text("OpenGamepad", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             StatusPill(status, statusKind)
-            Box(Modifier.weight(1f))
+            if (!narrow) Box(Modifier.weight(1f))
             OutlinedButton(onClick = onMacros) { Text("Macro e ruote") }
             OutlinedButton(onClick = onTryLayout) { Text("Prova layout") }
         }
 
         // Connection modes
-        Row(
+        FlowRow(
             Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Max),
+                // Same height side by side; stacked, each card keeps its own.
+                .then(if (narrow) Modifier else Modifier.height(IntrinsicSize.Max)),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            maxItemsInEachRow = if (narrow) 1 else 3,
         ) {
             Card("📶", "Wi‑Fi", "PC con companion OpenGamepad, Switch con sysmodule, o app PC originale", Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -163,17 +172,18 @@ fun ConnectScreen(
 
         // Screen saver
         Card("🌙", "Risparmio schermo", "☾ o Volume giù per attivare · Volume su per uscire", Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Orientamento", color = Muted, fontSize = 13.sp)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Orientamento", color = Muted, fontSize = 13.sp, modifier = Modifier.align(Alignment.CenterVertically))
                 for ((value, label) in listOf(
                     org.opengamepad.ScreenOrientation.LANDSCAPE to "Orizzontale (fotocamere a sinistra)",
                     org.opengamepad.ScreenOrientation.REVERSE to "Orizzontale capovolto",
                     org.opengamepad.ScreenOrientation.SYSTEM to "Segui la rotazione di Android",
+                    org.opengamepad.ScreenOrientation.PORTRAIT to "Verticale (Game Boy)",
                 )) {
                     FilterChip(selected = orientation == value, onClick = { onOrientation(value) }, label = { Text(label) })
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(
                     selected = saverMode == SaverMode.BLACK,
                     onClick = { onSaverMode(SaverMode.BLACK) },

@@ -85,4 +85,6 @@ enum class ScreenOrientation(val android: Int) {
     REVERSE(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE),
     /** Turns with the phone only when Android's auto-rotate is on. */
     SYSTEM(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE),
+    /** Game Boy-style vertical layout. */
+    PORTRAIT(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT),
 }
